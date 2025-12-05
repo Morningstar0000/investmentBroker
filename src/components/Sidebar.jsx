@@ -178,16 +178,6 @@ const Sidebar = ({
           </Button>
         </div>
       </div>
-
-      {/* Notification Dialog - Only show if user exists */}
-      {/* {user && (
-        <NotificationDialog
-          isOpen={notificationDialogOpen}
-          onClose={() => setNotificationDialogOpen(false)}
-          supabase={supabase}
-          userId={user.id}
-        />
-      )} */}
     </div>
   )
 }

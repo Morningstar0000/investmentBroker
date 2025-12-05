@@ -9,7 +9,24 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true, // Enable session persistence
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+     storage: {
+      getItem: (key) => {
+        // Check multiple storage locations
+        return localStorage.getItem(key) || sessionStorage.getItem(key);
+      },
+      setItem: (key, value) => {
+        // Store in both for consistency
+        localStorage.setItem(key, value);
+        sessionStorage.setItem(key, value);
+      },
+      removeItem: (key) => {
+        // Remove from all storage locations
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      }
+    },
+    storageKey: 'supabase.auth.token'
   }
 });
 

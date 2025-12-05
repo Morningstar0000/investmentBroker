@@ -267,28 +267,48 @@ function App() {
 
 
 
-  // Update handleLogout to clear sessionStorage
-  const handleLogout = async () => {
-    setAuthLoading(true);
-    try {
-      // Clear sessionStorage for this tab
-      sessionStorage.removeItem('adminUser');
-      sessionStorage.removeItem('isAdmin');
-
-      // Regular Supabase logout
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      setUser(null);
-      setCurrentPage("home");
-      setActiveSection("dashboard");
-
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      setAuthLoading(false);
+const handleLogout = async () => {
+  setAuthLoading(true);
+  try {
+    // Broadcast sign out to other tabs BEFORE clearing
+    localStorage.setItem('global_signout', Date.now().toString());
+    
+    // Clear ALL storage
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Clear cookies more thoroughly
+    const cookies = document.cookie.split(";");
+    for (let cookie of cookies) {
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
     }
-  };
+
+    // Supabase logout
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+
+    // Clear state
+    setUser(null);
+    setCurrentPage("home");
+    setActiveSection("dashboard");
+
+    // Force navigation
+    setTimeout(() => {
+      // Use replaceState to avoid back button issues
+      window.history.replaceState(null, '', '/');
+      window.location.reload(true);
+    }, 50);
+
+  } catch (error) {
+    console.error("Logout error:", error);
+    // Still redirect on error
+    window.location.href = '/';
+  } finally {
+    setAuthLoading(false);
+  }
+};
 
   // // Handle logout
   // const handleLogout = async () => {
@@ -1320,6 +1340,7 @@ useEffect(() => {
               sidebarOpen={sidebarOpen}
               setSidebarOpen={setSidebarOpen}
               onSignOut={handleLogout}
+              // onSignOut={signOut}
               onOpenChat={() => setChatOpen(true)}
               supabase={supabase} // Add this
               user={user}
