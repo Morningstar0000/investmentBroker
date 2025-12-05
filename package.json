@@ -1,11 +1,12 @@
 {
-  "name": "my-v0-project",
+  "name": "investment-broker-platform",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "preview": "vite preview"
+    "preview": "vite preview",
+     "deploy": "npm run build && vercel --prod"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -55,7 +56,6 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
-    "vaul": "^0.9.6",
     "zod": "^3.24.1"
   },
   "devDependencies": {
