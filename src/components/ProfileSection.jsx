@@ -8,16 +8,110 @@ import { Button } from "./ui/Button"
 import Input from "./ui/Input"
 import { Badge } from "./ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/Tabs"
-import { User, UploadCloud, Star, Shield, Check } from "./ui/Icons";// Import User and UploadCloud icons
+import { User, UploadCloud, Star, Shield, Check, Upload } from "./ui/Icons";// Import User and UploadCloud icons
+import { extractCountryCodeFromPhone, sortedCountries } from '../utils/countries';
+import { useToast } from '../context/ToastContext'
+import { countriesWithCallingCodes } from '../utils/countries';
+import ReactCountryFlag from "react-country-flag";
 
 // Accept props from App.jsx
-export default function ProfileSection({ userId, profileData, onProfileUpdate, dataError, selectedAccountTypeDetails, followedInvestors }) {
+export default function ProfileSection({ userId, profileData, onProfileUpdate, dataError, selectedAccountTypeDetails, followedInvestors, userSettings }) {
+  const { addToast } = useToast()
   // Internal state for form fields, initialized with profileData from props
   const [editableProfile, setEditableProfile] = useState(profileData);
   const [imageFile, setImageFile] = useState(null); // State to hold the selected image file
   const [imagePreviewUrl, setImagePreviewUrl] = useState(profileData.profilePictureUrl); // State for image preview
   const [uploadingImage, setUploadingImage] = useState(false); // State for image upload loading
   const [profileSavingLocal, setProfileSavingLocal] = useState(false); // Local state for saving UI
+
+  // Add these new states for phone handling
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+1'); // Default
+  const [localPhoneNumber, setLocalPhoneNumber] = useState('');
+  const [detectedCountryCode, setDetectedCountryCode] = useState('');
+
+  // ADD THIS MISSING FUNCTION BACK
+  const handleLocalPhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    setLocalPhoneNumber(value);
+    
+    // Update the editableProfile with full phone number
+    const fullPhone = phoneCountryCode + value;
+    setEditableProfile(prev => ({
+      ...prev,
+      phone: fullPhone
+    }));
+  };
+
+  // ADD THIS MISSING FUNCTION BACK
+  const formatPhoneDisplay = (number) => {
+    if (!number) return '';
+    
+    // Basic formatting
+    if (number.length <= 3) return number;
+    if (number.length <= 6) return `${number.slice(0, 3)} ${number.slice(3)}`;
+    return `${number.slice(0, 3)} ${number.slice(3, 6)} ${number.slice(6, 10)}`;
+  };
+
+  // ADD THIS MISSING FUNCTION BACK
+  const getCountryInfo = () => {
+    if (!detectedCountryCode) return null;
+    return countriesWithCallingCodes.find(c => c.code === detectedCountryCode);
+  };
+
+  // Initialize countryInfo
+  const countryInfo = getCountryInfo();
+
+ // Update the useEffect that initializes phone data
+useEffect(() => {
+  // Check the user's nationality to determine default country
+  const userNationality = profileData.nationality?.toLowerCase() || '';
+  let defaultCountryCode = '+234';
+  let defaultDetectedCode = 'NG';
+  
+  // If user has a nationality set, try to match it to a country
+  if (userNationality) {
+    const matchedCountry = countriesWithCallingCodes.find(
+      country => country.name.toLowerCase() === userNationality
+    );
+    if (matchedCountry) {
+      defaultCountryCode = matchedCountry.callingCode;
+      defaultDetectedCode = matchedCountry.code;
+    }
+  }
+  
+  if (profileData.phone) {
+    const { callingCode, countryCode, number } = extractCountryCodeFromPhone(profileData.phone);
+    setPhoneCountryCode(callingCode || defaultCountryCode);
+    setDetectedCountryCode(countryCode || defaultDetectedCode);
+    setLocalPhoneNumber(number || '');
+  } else {
+    // Use nationality-based default
+    setPhoneCountryCode(defaultCountryCode);
+    setDetectedCountryCode(defaultDetectedCode);
+    setLocalPhoneNumber('');
+  }
+  
+  // Update internal state when profileData changes
+  setEditableProfile(profileData);
+  setImagePreviewUrl(profileData.profilePictureUrl);
+}, [profileData]);
+
+const normalizePhoneForSave = () => {
+  // If user manually edited the phone field in editableProfile, use that
+  if (editableProfile.phone && editableProfile.phone !== phoneCountryCode + localPhoneNumber) {
+    return editableProfile.phone;
+  }
+  
+  // Otherwise construct from parts
+  const cleanedNumber = localPhoneNumber.replace(/\D/g, '');
+  
+  // If it's a Nigerian number starting with 0, remove the 0
+  if (detectedCountryCode === 'NG' && cleanedNumber.startsWith('0')) {
+    return phoneCountryCode + cleanedNumber.substring(1);
+  }
+  
+  return phoneCountryCode + cleanedNumber;
+};
 
   // Update internal state when props.profileData changes (e.g., after a successful save or initial load)
   useEffect(() => {
@@ -104,15 +198,19 @@ export default function ProfileSection({ userId, profileData, onProfileUpdate, d
           return;
         }
       }
-
-      // Call the prop function to update the profile in App.jsx
-      // Pass the updated profile data including the new profilePictureUrl
-      await onProfileUpdate({
-        ...editableProfile,
-        profilePictureUrl: newProfilePictureUrl,
-      });
+      
+       // Normalize phone before saving
+    const normalizedPhone = normalizePhoneForSave();
+    
+    await onProfileUpdate({
+      ...editableProfile,
+      profilePictureUrl: newProfilePictureUrl,
+      phone: normalizedPhone, // Use normalized phone
+    });
+      addToast('Profile updated successfully!', 'success')
 
     } catch (error) {
+      addToast(`Error: ${error.message}`, 'error')
       console.error("Error in handleSubmit:", error.message);
       // dataError will be set by onProfileUpdate in App.jsx
     } finally {
@@ -121,17 +219,59 @@ export default function ProfileSection({ userId, profileData, onProfileUpdate, d
   };
 
   const getRiskColor = (risk) => {
-    switch (risk) {
-      case "low":
-        return "text-green-600 bg-green-100"
-      case "medium":
-        return "text-yellow-600 bg-yellow-100"
-      case "high":
-        return "text-red-600 bg-red-100"
-      default:
-        return "text-gray-600 bg-gray-100"
-    }
-  };
+  switch (risk) {
+    case "low":
+      return "text-green-600 bg-green-100"
+    case "medium":
+      return "text-yellow-600 bg-yellow-100"
+    case "high":
+      return "text-red-600 bg-red-100"
+    default:
+      return "text-gray-600 bg-gray-100"
+  }
+};
+
+// Helper functions for risk tolerance display
+const getRiskColorForTolerance = (riskTolerance) => {
+  switch (riskTolerance) {
+    case "low":
+      return "bg-green-100 text-green-800 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800";
+    case "medium":
+      return "bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800";
+    case "high":
+      return "bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800";
+    default:
+      return "bg-gray-100 text-gray-800 border border-gray-300 dark:bg-gray-800 dark:text-gray-400";
+  }
+};
+
+const getRiskToleranceLabel = (riskTolerance) => {
+  switch (riskTolerance) {
+    case "low":
+      return "Conservative (Low Risk)";
+    case "medium":
+      return "Balanced (Medium Risk)";
+    case "high":
+      return "Aggressive (High Risk)";
+    default:
+      return "Not Set";
+  }
+};
+
+const getRiskDescription = (riskTolerance) => {
+  switch (riskTolerance) {
+    case "low":
+      return "Prioritizes capital preservation with minimal risk";
+    case "medium":
+      return "Balanced approach between risk and returns";
+    case "high":
+      return "Seeks maximum returns with higher risk tolerance";
+    default:
+      return "Risk preference not configured";
+  }
+};
+
+
 
   return (
     <div className="space-y-6">
@@ -184,7 +324,7 @@ export default function ProfileSection({ userId, profileData, onProfileUpdate, d
                   </div>
                 )}
                 <label className="flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-md cursor-pointer hover:bg-blue-600 transition-colors text-sm">
-                  <UploadCloud className="w-4 h-4 mr-2" />
+                  <Upload  className="w-4 h-4 mr-2" />
                   {uploadingImage ? "Uploading..." : "Change Photo"}
                   <input
                     type="file"
@@ -232,15 +372,61 @@ export default function ProfileSection({ userId, profileData, onProfileUpdate, d
                   />
                 </div>
 
+               {/* UPDATED PHONE NUMBER FIELD - Country code fixed */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
-                  <Input
-                    name="phone" // Add name attribute
-                    value={editableProfile.phone}
-                    onChange={handleInputChange}
-                  />
-                </div>
-
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Phone Number
+                  </label>
+                  <div className="flex gap-2">
+                    {/* Fixed Country Code Display (not editable) */}
+                    <div className="w-32 flex-shrink-0">
+                      <div className="relative">
+                        <div className="flex items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800">
+                          {countryInfo ? (
+                            <>
+                              <ReactCountryFlag
+                                countryCode={detectedCountryCode}
+                                svg
+                                style={{
+                                  width: '1.2em',
+                                  height: '1.2em',
+                                }}
+                                title={countryInfo.name}
+                              />
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {phoneCountryCode}
+                              </span>
+                              <div className="ml-auto">
+                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                  Fixed
+                                </Badge>
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-sm text-gray-500">No country set</span>
+                          )}
+                        </div>
+                        <div className="absolute -top-2 left-2 bg-white dark:bg-gray-900 px-1 text-xs text-gray-500">
+                          Country Code
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Editable Phone Number */}
+                    <div className="flex-1">
+                      <Input
+                        type="tel"
+                        placeholder="123 456 7890"
+                        value={formatPhoneDisplay(localPhoneNumber)}
+                        onChange={handleLocalPhoneChange}
+                        className="w-full"
+                      />
+                      <div className="absolute -top-2 left-2 bg-white dark:bg-gray-900 px-1 text-xs text-gray-500">
+                        Phone Number
+                      </div>
+                    </div>
+                  </div>
+                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
                   <Input
@@ -249,6 +435,31 @@ export default function ProfileSection({ userId, profileData, onProfileUpdate, d
                     onChange={handleInputChange}
                   />
                 </div>
+                {/* // Inside your component, add a country field: */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Country/Nationality
+                  </label>
+                  <div className="flex items-center p-2 border rounded-md bg-gray-50 dark:bg-gray-800">
+                    {editableProfile.nationality ? (
+                      <>
+                        {/* Simple flag emoji - no ReactCountryFlag needed */}
+                        <span className="mr-2 text-lg" role="img" aria-label={editableProfile.nationality}>
+                          {(() => {
+                            // Try to find the country to get its emoji
+                            const country = sortedCountries.find(c =>
+                              c.name.toLowerCase() === editableProfile.nationality.toLowerCase()
+                            );
+                            return country?.emoji || "🌐"; // Default globe emoji if not found
+                          })()}
+                        </span>
+                        <span className="font-medium">{editableProfile.nationality}</span>
+                      </>
+                    ) : (
+                      <span className="text-gray-400">Not set</span>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -256,74 +467,98 @@ export default function ProfileSection({ userId, profileData, onProfileUpdate, d
 
         <TabsContent value="trading" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Trading Preferences</CardTitle>
-              <CardDescription>Configure your trading settings and risk management</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Risk Tolerance</label>
-                <div className="flex gap-2">
-                  {["Conservative", "Moderate", "Aggressive"].map((risk) => (
-                    <button
-                      key={risk}
-                      onClick={() => handleInputChange({ target: { name: "riskTolerance", value: risk } })}
-                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${editableProfile.riskTolerance === risk
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
-                        }`}
-                    >
-                      {risk}
-                    </button>
-                  ))}
-                </div>
-              </div>
+  <CardHeader>
+    <CardTitle>Trading Preferences</CardTitle>
+    <CardDescription>Configure your trading settings and risk management</CardDescription>
+  </CardHeader>
+  <CardContent className="space-y-6">
+    {/* UPDATED: Risk Tolerance from Settings */}
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          Copy Trading Risk Tolerance
+        </label>
+        
+        {userSettings?.riskTolerance ? (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Colored badge showing current setting */}
+            <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${getRiskColorForTolerance(userSettings.riskTolerance)}`}>
+              {getRiskToleranceLabel(userSettings.riskTolerance)}
+            </div>
+            
+         
+            
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {getRiskDescription(userSettings.riskTolerance)}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              Not Set
+            </div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Set your risk tolerance in Account Settings
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Note about where to change it */}
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        This setting controls your copy trading preferences. Change it in Settings → Account Settings.
+      </p>
+    </div>
 
-              {/* Display Selected Account Type Details - Assuming this prop is still passed and used */}
-              {selectedAccountTypeDetails ? (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Account Type</label>
-                  <Card className="bg-gray-50 dark:bg-gray-800 shadow-none border-dashed border-gray-300 dark:border-gray-600">
-                    <CardContent className="pt-4 space-y-2">
-                      <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{selectedAccountTypeDetails.name}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{selectedAccountTypeDetails.description}</p>
-                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-700 dark:text-gray-300">
-                        <div>
-                          <span className="font-medium">Min. Investment:</span> ${selectedAccountTypeDetails.min_investment.toLocaleString()}
-                        </div>
-                        <div>
-                          <span className="font-medium">Management Fee:</span> {selectedAccountTypeDetails.management_fee}%
-                        </div>
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-1">Key Features:</p>
-                        <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
-                          {selectedAccountTypeDetails.features.map((feature, index) => (
-                            <li key={index}>{feature}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-1">Supported Risk Levels:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedAccountTypeDetails.risk_levels.map((risk, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">{risk}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">No account type selected. Go to "Account Types" to choose one.</p>
-              )}
+   
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Account Status</label>
-                <Badge variant="success">Verified</Badge>
+    {/* Display Selected Account Type Details - Assuming this prop is still passed and used */}
+    {selectedAccountTypeDetails ? (
+      <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Account Type</label>
+        <Card className="bg-gray-50 dark:bg-gray-800 shadow-none border-dashed border-gray-300 dark:border-gray-600">
+          <CardContent className="pt-4 space-y-2">
+            <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{selectedAccountTypeDetails.name}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{selectedAccountTypeDetails.description}</p>
+            <div className="grid grid-cols-2 gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <div>
+                <span className="font-medium">Min. Investment:</span> ${selectedAccountTypeDetails.min_investment.toLocaleString()}
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <span className="font-medium">Management Fee:</span> {selectedAccountTypeDetails.management_fee}%
+              </div>
+            </div>
+            <div>
+              <p className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-1">Key Features:</p>
+              <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
+                {selectedAccountTypeDetails.features.map((feature, index) => (
+                  <li key={index}>{feature}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-sm text-gray-700 dark:text-gray-300 mb-1">Supported Risk Levels:</p>
+              <div className="flex flex-wrap gap-1">
+                {selectedAccountTypeDetails.risk_levels.map((risk, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">{risk}</Badge>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    ) : (
+      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-gray-500 dark:text-gray-400">No account type selected. Go to "Account Types" to choose one.</p>
+      </div>
+    )}
+
+    <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Account Status</label>
+      <Badge variant="success">Verified</Badge>
+    </div>
+  </CardContent>
+</Card>
 
           {/* Followed Investors Section */}
           {followedInvestors && followedInvestors.length > 0 ? (

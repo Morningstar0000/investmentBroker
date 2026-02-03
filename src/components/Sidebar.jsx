@@ -43,7 +43,8 @@ const Sidebar = ({
   onOpenChat,
   user,
   chatUnreadCount = 0,  // Add this prop
-  systemUnreadCount = 0 // Add this prop
+  systemUnreadCount = 0, // Add this prop
+  profileData
 }) => {
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false)
   const menuItems = [
@@ -86,78 +87,74 @@ const Sidebar = ({
   };
 
   return (
-    <div
-      className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-    >
-      <div className="flex flex-col h-full">
-        {/* Logo/Brand with Notification Bell */}
+    <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+
+      {/* Fixed Top Section */}
+      <div className="flex-shrink-0">
         <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
+            <div className="text-2xl font-bold text-blue-600">
+              <img src="Logo.png" alt="Logo" className='max-w-28' />
             </div>
-            <span className="text-xl font-bold text-gray-900">ForexPro</span>
           </div>
-
-          {/* Notification Bell */}
           <NotificationBell
-             count={systemUnreadCount}
+            count={systemUnreadCount}
             onClick={handleNotificationClick}
           />
         </div>
 
-        <NotificationDialog
-          isOpen={notificationDialogOpen}
-          onClose={() => setNotificationDialogOpen(false)}
-          supabase={supabase}
-          userId={user?.id}
-          onMarkAsRead={() => {
-            // This will trigger a refresh of the unread count
-            if (user?.id) {
-              fetchUnreadCount(user.id); // You'll need to implement this function
-            }
-          }}
-        />
+        {/* User Profile */}
+        <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          {/* Your user profile code */}
+          <div className="flex items-start space-x-3">
+            {/* Avatar */}
+            <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center border-2 border-blue-200 flex-shrink-0">
+              <span className="text-blue-700 font-bold">
+                {profileData?.firstName?.charAt(0) || user?.email?.charAt(0) || "U"}
+              </span>
+            </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = currentPage === item.id
+            {/* User Info - Column layout */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col">
+                <span className="font-semibold text-gray-900 text-sm truncate">
+                  {profileData?.firstName || "Trader"} {profileData?.lastName || ""}
+                </span>
+                <span className="text-xs text-gray-500 truncate mt-0.5">
+                  {user?.email || "User"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleMenuClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 text-left rounded-lg transition-colors ${isActive ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-gray-700 hover:bg-gray-50"
-                  }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Icon className={`w-5 h-5 ${isActive ? "text-blue-700" : "text-gray-500"}`} />
-                  <span className="font-medium">{item.label}</span>
-                </div>
-                {item.badge && (
-                  <Badge variant={isActive ? "default" : "secondary"} className="text-xs">
-                    {item.badge}
-                  </Badge>
-                )}
-              </button>
-            )
-          })}
+      {/* Scrollable Middle Section */}
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav className="space-y-2 px-4">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleMenuClick(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2.5 text-left rounded-lg transition-colors ${currentPage === item.id ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-gray-700 hover:bg-gray-50"}`}
+            >
+              <div className="flex items-center space-x-3">
+                <item.icon className={`w-5 h-5 ${currentPage === item.id ? "text-blue-700" : "text-gray-500"}`} />
+                <span className="font-medium">{item.label}</span>
+              </div>
+            </button>
+          ))}
         </nav>
 
-        {/* Support Chat Button */}
-       <div className="px-4 py-2">
+        <div className="mt-4 px-4">
           <button
             onClick={handleSupportClick}
-            className="w-full flex items-center justify-between px-3 py-2 text-left rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
+            className="w-full flex items-center justify-between px-3 py-2.5 text-left rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
           >
             <div className="flex items-center space-x-3">
               <MessageCircle className="w-5 h-5 text-gray-500" />
               <span className="font-medium">Support Chat</span>
             </div>
-            {/* Show chat unread count on the chat button */}
             {chatUnreadCount > 0 && (
               <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                 {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
@@ -165,20 +162,35 @@ const Sidebar = ({
             )}
           </button>
         </div>
-
-        {/* Bottom Section */}
-        <div className="p-4 border-t border-gray-200 space-y-2">
-          <Button
-            variant="ghost"
-            onClick={onSignOut}
-            className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-          >
-            <LogOut className="w-5 h-5 mr-3" />
-            Sign Out
-          </Button>
-        </div>
       </div>
+
+      {/* Fixed Bottom Section */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-200">
+        <Button
+          variant="ghost"
+          onClick={onSignOut}
+          className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+        >
+          <LogOut className="w-5 h-5 mr-3" />
+          Sign Out
+        </Button>
+      </div>
+
+      {/* Notification Dialog - RENDERED OUTSIDE THE SIDEBAR */}
+      <NotificationDialog
+        isOpen={notificationDialogOpen}
+        onClose={() => setNotificationDialogOpen(false)}
+        supabase={supabase}
+        userId={user?.id}
+        onMarkAsRead={() => {
+          if (user?.id) {
+            // Refresh unread count
+            fetchUnreadCount(user.id);
+          }
+        }}
+      />
     </div>
+
   )
 }
 

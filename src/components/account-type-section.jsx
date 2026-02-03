@@ -57,10 +57,7 @@ export default function AccountTypeSection({
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Account Types</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">Manage different investment account categories and their configurations.</p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Account Type
-        </Button>
+     
       </div>
 
       {dataError && (

@@ -25,3 +25,70 @@ code {
     @apply  mx-auto max-w-6xl px-8;
   }
 }
+
+/* Add to your global.css or styles.css */
+@layer components {
+  .select-content {
+    background-color: white !important;
+    color: #1f2937 !important; /* gray-900 */
+  }
+  
+  .dark .select-content {
+    background-color: #111827 !important; /* gray-900 dark */
+    color: #f9fafb !important; /* gray-50 */
+  }
+  
+  .select-item {
+    cursor: pointer !important;
+  }
+  
+  .select-item:hover {
+    background-color: #f3f4f6 !important; /* gray-100 */
+  }
+  
+  .dark .select-item:hover {
+    background-color: #374151 !important; /* gray-700 */
+  }
+}
+
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Improve navbar item wrapping */
+@media (max-width: 1280px) {
+  .admin-nav-items {
+    max-width: 600px;
+  }
+  
+  .admin-nav-items button {
+    margin-bottom: 2px;
+  }
+}
+
+/* Ensure text doesn't overflow */
+.truncate-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}

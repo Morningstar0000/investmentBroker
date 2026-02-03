@@ -1,7 +1,17 @@
 "use client"
 import React from 'react'
 import { Button } from '../components/ui/Button'
-import { MessageCircle, CreditCard, Users, Settings, Bell } from '../components/ui/Icons'
+import {
+  MessageCircle,
+  CreditCard,
+  Users,
+  Settings,
+  Bell,
+  BarChart3,
+  TrendingUp,
+  Activity,
+  Receipt  // Add Receipt icon for transactions
+} from '../components/ui/Icons'
 import AdminNotifications from './AdminNotifications'
 
 const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to props
@@ -25,7 +35,7 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
             <p className="text-gray-600 mb-4">
               Manage bank accounts and cryptocurrency wallets for deposits
             </p>
-            <Button 
+            <Button
               onClick={() => onNavigate('admin-payment')}
               className="w-full bg-blue-600 hover:bg-blue-700"
             >
@@ -42,11 +52,62 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
             <p className="text-gray-600 mb-4">
               Manage live chat conversations and customer inquiries
             </p>
-            <Button 
+            <Button
               onClick={() => onNavigate('admin-chat')}
               className="w-full bg-green-600 hover:bg-green-700"
             >
               Manage Chats
+            </Button>
+          </div>
+
+          {/* TRANSACTIONS MANAGEMENT CARD - ADDED THIS */}
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-center space-x-3 mb-4">
+              <Receipt className="w-8 h-8 text-red-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Transactions</h3>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Manage user deposits, withdrawals, and transaction history
+            </p>
+            <Button
+              onClick={() => onNavigate('admin-transactions')}
+              className="w-full bg-red-600 hover:bg-red-700"
+            >
+              Manage Transactions
+            </Button>
+          </div>
+
+          {/* USER METRICS MANAGEMENT CARD */}
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-center space-x-3 mb-4">
+              <BarChart3 className="w-8 h-8 text-teal-600" />
+              <h3 className="text-xl font-semibold text-gray-900">User Metrics</h3>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Manage user trading metrics, balances, P&L, and win rates
+            </p>
+            <Button
+              onClick={() => onNavigate('admin-user-metrics')}
+              className="w-full bg-teal-600 hover:bg-teal-700"
+            >
+              Manage Metrics
+            </Button>
+          </div>
+
+          {/* TRADING POSITIONS CARD */}
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-center space-x-3 mb-4">
+              <Activity className="w-8 h-8 text-indigo-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Trading Positions</h3>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Manage user trading positions, P&L, and trade history
+            </p>
+            <Button
+              onClick={() => onNavigate('admin-trading-positions')}
+              className="w-full bg-indigo-600 hover:bg-indigo-700"
+            >
+              Manage Positions
             </Button>
           </div>
 
@@ -59,7 +120,7 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
             <p className="text-gray-600 mb-4">
               Send notifications and alerts to users
             </p>
-            <Button 
+            <Button
               onClick={() => onNavigate('admin-notifications')}
               className="w-full bg-yellow-600 hover:bg-yellow-700"
             >
@@ -76,12 +137,28 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
             <p className="text-gray-600 mb-4">
               View and manage user accounts and permissions
             </p>
-            <Button 
+            <Button
               onClick={() => onNavigate('admin-users')}
               className="w-full bg-purple-600 hover:bg-purple-700"
-              disabled
             >
-              Coming Soon
+              Manage Users
+            </Button>
+          </div>
+
+          {/* Investor Management Card */}
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <div className="flex items-center space-x-3 mb-4">
+              <Users className="w-8 h-8 text-indigo-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Investor Management</h3>
+            </div>
+            <p className="text-gray-600 mb-4">
+              Add, edit, and manage trading investors for copy trading
+            </p>
+            <Button
+              onClick={() => onNavigate('admin-investors')}
+              className="w-full bg-indigo-600 hover:bg-indigo-700"
+            >
+              Manage Investors
             </Button>
           </div>
 
@@ -94,7 +171,7 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
             <p className="text-gray-600 mb-4">
               Configure platform-wide settings and preferences
             </p>
-            <Button 
+            <Button
               onClick={() => onNavigate('admin-settings')}
               className="w-full bg-orange-600 hover:bg-orange-700"
               disabled
@@ -118,8 +195,8 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Quick Stats - UPDATED WITH TRANSACTIONS STAT */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">Active Chats</h4>
             <p className="text-3xl font-bold text-blue-600">12</p>
@@ -131,9 +208,14 @@ const AdminPanel = ({ user, onNavigate, supabase }) => { // Add supabase to prop
             <p className="text-sm text-gray-500">Active deposit options</p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-            <h4 className="text-lg font-semibold text-gray-900 mb-2">Online Agents</h4>
-            <p className="text-3xl font-bold text-purple-600">3</p>
-            <p className="text-sm text-gray-500">Available support staff</p>
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">Transactions</h4>
+            <p className="text-3xl font-bold text-red-600">1,245</p>
+            <p className="text-sm text-gray-500">Total transactions processed</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">User Metrics</h4>
+            <p className="text-3xl font-bold text-teal-600">150+</p>
+            <p className="text-sm text-gray-500">Tracked user metrics</p>
           </div>
         </div>
       </div>

@@ -1,7 +1,13 @@
-// src/context/AuthContext.jsx
 "use client"
-import React,{ createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../client';
+import { Button } from '../components/ui/Button';
+
+// Create a simple toast function for now
+const addToast = (message, type = 'info') => {
+  console.log(`[Toast ${type}]: ${message}`);
+  // You can add actual toast logic later
+};
 
 const AuthContext = createContext();
 
@@ -10,36 +16,185 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active session on initial load
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Check active sessions and sets the user
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    getSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        if (event === 'SIGNED_IN') {
+          addToast('Successfully signed in!', 'success');
+        } else if (event === 'SIGNED_OUT') {
+          addToast('Signed out successfully', 'info');
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Helper to call your working resend-email function
+  const resendEmail = async (email, type = 'signup') => {
+    try {
+      const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resend-email`;
+      console.log('Calling resend-email function:', { email, type });
+      
+      const response = await fetch(
+        edgeFunctionUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, type })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Request failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Resend email result:', result);
+      return result;
+    } catch (error) {
+      console.error('Resend email error:', error);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     loading,
-    signIn: async ({ email, password }) => {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      return data;
+    signIn: async (email, password) => { // ✅ Changed from object to separate params
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        
+        if (error) throw error;
+        
+        addToast('Successfully signed in!', 'success');
+        return data;
+      } catch (error) {
+        addToast(`Sign in failed: ${error.message}`, 'error');
+        throw error;
+      }
     },
+    
     signUp: async (credentials) => {
-      const { data, error } = await supabase.auth.signUp(credentials);
-      if (error) throw error;
-      return data;
+      const { firstName, lastName, phone, country, email, password, address } = credentials;
+      
+      try {
+        console.log('Starting signup for:', email);
+        
+        // Step 1: Let Supabase create the user and send verification email
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+              phone: phone,
+              country: country,
+              address: address || ''
+            },
+            // IMPORTANT: This will send the verification email FROM SUPABASE
+            emailRedirectTo: `${import.meta.env.VITE_APP_URL}/auth/callback`
+          }
+        });
+        
+        if (authError) {
+          console.error('Supabase auth error:', authError);
+          addToast(`Signup failed: ${authError.message}`, 'error');
+          throw authError;
+        }
+        
+        if (!authData.user) {
+          throw new Error('User creation failed - no user returned');
+        }
+
+        console.log('User created:', authData.user.id);
+        
+        // Step 2: Create user profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: authData.user.id,
+            first_name: firstName,
+            last_name: lastName,
+            email: email,
+            phone: phone || '',
+            nationality: country || '',
+            address: address || '',
+            risk_tolerance: 'Moderate',
+            account_type_id: null,
+            profile_picture_url: '',
+            followed_investor_id: null
+          }]);
+        
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+          addToast('Account created but profile setup failed', 'warning');
+        }
+
+        addToast('Account created! Check your email for verification.', 'success');
+        return authData;
+
+      } catch (error) {
+        console.error('Signup error:', error);
+        addToast(`Signup failed: ${error.message}`, 'error');
+        throw error;
+      }
     },
+    
+    resetPassword: async (email) => { // ✅ Already exists and is correct
+      try {
+        // Use Supabase's built-in reset password
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+           redirectTo: `${import.meta.env.VITE_APP_URL}/auth/callback`,
+        });
+        
+        if (error) throw error;
+        
+        addToast('Password reset email sent! Check your inbox.', 'success');
+        return { success: true };
+      } catch (error) {
+        console.error('Password reset error:', error);
+        addToast(`Failed to send reset email: ${error.message}`, 'error');
+        throw error;
+      }
+    },
+    
+    resendVerification: async (email) => {
+      try {
+        // Use your working edge function
+        await resendEmail(email, 'signup');
+        addToast('Verification email resent! Check your inbox.', 'success');
+        return { success: true };
+      } catch (error) {
+        console.error('Resend verification error:', error);
+        addToast(`Failed to resend verification: ${error.message}`, 'error');
+        throw error;
+      }
+    },
+    
     signOut: async () => {
       await supabase.auth.signOut();
+      addToast('Signed out successfully', 'info');
     }
   };
 
@@ -49,6 +204,7 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+
 
 export function useAuth() {
   const context = useContext(AuthContext);

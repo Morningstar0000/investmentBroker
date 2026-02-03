@@ -12,6 +12,9 @@ const config = {
   ],
   theme: {
     extend: {
+       fontFamily: {
+        'emoji': ['"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"', 'sans-serif'],
+      },
       colors: {
         // These are the custom colors from shadcn/ui's default theme
         // You'll need to define these CSS variables in your src/index.css (or similar)

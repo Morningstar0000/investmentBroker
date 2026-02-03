@@ -19,6 +19,8 @@ import {
   Banknote,
   Bitcoin,
   MessageCircle,
+  Globe,
+  MapPin
 } from "../components/ui/Icons";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -28,19 +30,22 @@ export default function AdminPaymentDetails({ supabase }) {
   const [editingId, setEditingId] = useState(null);
   const [showInactive, setShowInactive] = useState(false);
   const [formData, setFormData] = useState({
-    payment_type: "bank",
+    payment_type: "bank_us",
     currency: "",
     bank_name: "",
     account_name: "",
     account_number: "",
+    iban: "",
+    swift_bic: "",
     routing_number: "",
+    bank_country: "",
+    bank_address: "",
     wallet_address: "",
     network: "",
     is_active: true,
     display_order: 0,
-    min_deposit_amount: "",
-    max_deposit_amount: 500000,
     notes: "",
+    account_type: "checking",
   });
   const [showSensitive, setShowSensitive] = useState({});
 
@@ -73,21 +78,63 @@ export default function AdminPaymentDetails({ supabase }) {
       bank_name: detail.bank_name || "",
       account_name: detail.account_name || "",
       account_number: detail.account_number || "",
+      iban: detail.iban || "",
+      swift_bic: detail.swift_bic || "",
       routing_number: detail.routing_number || "",
+      bank_country: detail.bank_country || "",
+      bank_address: detail.bank_address || "",
+      account_type: detail.account_type || "checking", // Add this
       wallet_address: detail.wallet_address || "",
       network: detail.network || "",
       is_active: detail.is_active,
       display_order: detail.display_order || 0,
-      min_deposit_amount: detail.min_deposit_amount || "",
-      max_deposit_amount: detail.max_deposit_amount || 100000,
       notes: detail.notes || "",
     });
   };
 
   const handleSave = async () => {
     try {
+      // Validate required fields
+      if (formData.payment_type === "bank") {
+        if (!formData.bank_name?.trim() || !formData.account_name?.trim()) {
+          alert("Bank Name and Account Name are required for bank transfers");
+          return;
+        }
+        // Either account number or IBAN is required
+        if (!formData.account_number?.trim() && !formData.iban?.trim()) {
+          alert("Either Account Number or IBAN is required for bank transfers");
+          return;
+        }
+      } else if (formData.payment_type === "crypto") {
+        if (
+          !formData.currency?.trim() ||
+          !formData.wallet_address?.trim() ||
+          !formData.network?.trim()
+        ) {
+          alert(
+            "Currency, Wallet Address, and Network are required for cryptocurrency"
+          );
+          return;
+        }
+      }
+
+      // Prepare updates
       const updates = {
-        ...formData,
+        payment_type: formData.payment_type,
+        currency: formData.currency || null,
+        bank_name: formData.bank_name || null,
+        account_name: formData.account_name || null,
+        account_number: formData.account_number || null,
+        iban: formData.iban || null,
+        swift_bic: formData.swift_bic || null,
+        routing_number: formData.routing_number || null,
+        bank_country: formData.bank_country || null,
+        bank_address: formData.bank_address || null,
+        wallet_address: formData.wallet_address || null,
+        network: formData.network || null,
+        is_active: formData.is_active,
+        display_order: formData.display_order || 0,
+        notes: formData.notes || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -103,7 +150,7 @@ export default function AdminPaymentDetails({ supabase }) {
         error = updateError;
       } else {
         // Insert new record - remove id if it exists and add created_at
-        const { id, ...newRecord } = updates; // Remove id for new records
+        const { id, ...newRecord } = updates;
         const recordToInsert = {
           ...newRecord,
           created_at: new Date().toISOString(),
@@ -118,49 +165,59 @@ export default function AdminPaymentDetails({ supabase }) {
 
       if (error) throw error;
 
-      const handleDelete = async (id) => {
-        if (!confirm('Are you sure you want to delete this payment method? This action cannot be undone.')) return
+      alert(
+        `Payment method ${editingId === "new" ? "added" : "updated"
+        } successfully!`
+      );
 
-        try {
-          const { error } = await supabase
-            .from('payment_details')
-            .delete()
-            .eq('id', id)
-
-          if (error) throw error
-
-          // Show success message
-          alert('Payment method deleted successfully!')
-          fetchPaymentDetails()
-        } catch (error) {
-          console.error('Error deleting payment detail:', error)
-          alert('Error deleting: ' + error.message)
-        }
-      }
-
-      // Reset form and fetch updated data
       setEditingId(null);
       setFormData({
-        payment_type: "bank",
+        payment_type: "bank_us",
         currency: "",
         bank_name: "",
         account_name: "",
         account_number: "",
+        iban: "",
+        swift_bic: "",
         routing_number: "",
+        bank_country: "",
+        bank_address: "",
         wallet_address: "",
         network: "",
         is_active: true,
         display_order: 0,
-        min_deposit_amount: '',
-        max_deposit_amount: 100000,
         notes: "",
+        account_type: "checking",
       });
 
-      // Refresh the payment details list
       await fetchPaymentDetails();
     } catch (error) {
       console.error("Error saving payment detail:", error);
       alert("Error saving: " + error.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this payment method? This action cannot be undone."
+      )
+    )
+      return;
+
+    try {
+      const { error } = await supabase
+        .from("payment_details")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      alert("Payment method deleted successfully!");
+      fetchPaymentDetails();
+    } catch (error) {
+      console.error("Error deleting payment detail:", error);
+      alert("Error deleting: " + error.message);
     }
   };
 
@@ -175,9 +232,15 @@ export default function AdminPaymentDetails({ supabase }) {
         .eq("id", id);
 
       if (error) throw error;
+
+      alert(
+        `Payment method ${!currentStatus ? "activated" : "deactivated"
+        } successfully!`
+      );
       fetchPaymentDetails();
     } catch (error) {
       console.error("Error toggling active status:", error);
+      alert("Error updating status: " + error.message);
     }
   };
 
@@ -228,18 +291,20 @@ export default function AdminPaymentDetails({ supabase }) {
             onClick={() => {
               setEditingId("new");
               setFormData({
-                payment_type: "bank",
+                payment_type: "bank_us",
                 currency: "",
                 bank_name: "",
                 account_name: "",
                 account_number: "",
+                iban: "",
+                swift_bic: "",
                 routing_number: "",
+                bank_country: "",
+                bank_address: "",
                 wallet_address: "",
                 network: "",
                 is_active: true,
                 display_order: 0,
-                min_deposit_amount: '',
-                max_deposit_amount: 100000,
                 notes: "",
               });
             }}
@@ -276,18 +341,18 @@ export default function AdminPaymentDetails({ supabase }) {
                     setFormData({
                       ...formData,
                       payment_type: e.target.value,
-                      currency:
-                        e.target.value === "bank" ? "" : formData.currency,
+                      currency: e.target.value === "crypto" ? formData.currency : "",
                     })
                   }
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="bank">Bank Transfer</option>
+                  <option value="bank_us">US Bank Transfer</option>
+                  <option value="bank_europe">European Bank Transfer</option>
                   <option value="crypto">Cryptocurrency</option>
                 </select>
               </div>
 
-              {formData.payment_type === "crypto" && (
+              {formData.payment_type === "crypto" ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Currency *
@@ -307,10 +372,27 @@ export default function AdminPaymentDetails({ supabase }) {
                     <option value="bnb">Binance Coin (BNB)</option>
                   </select>
                 </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {formData.payment_type === "bank_us" ? (
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <Globe className="w-5 h-5 text-green-600" />
+                  )}
+                  <span className="text-sm font-medium">
+                    {formData.payment_type === "bank_us" ? "US Bank" : "European Bank"}
+                  </span>
+                </div>
               )}
 
-              {formData.payment_type === "bank" ? (
+              {(formData.payment_type === "bank_us" || formData.payment_type === "bank_europe") ? (
                 <>
+                  <div className="md:col-span-2">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                      {formData.payment_type === "bank_us" ? "US Bank Account Details" : "European Bank Account Details"}
+                    </h3>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Bank Name *
@@ -322,8 +404,10 @@ export default function AdminPaymentDetails({ supabase }) {
                         setFormData({ ...formData, bank_name: e.target.value })
                       }
                       placeholder="Enter bank name"
+                      required
                     />
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Account Name *
@@ -337,39 +421,157 @@ export default function AdminPaymentDetails({ supabase }) {
                           account_name: e.target.value,
                         })
                       }
-                      placeholder="Enter account name"
+                      placeholder="Enter account holder name"
+                      required
                     />
                   </div>
+
+                  {/* Show different fields based on bank type */}
+                  {formData.payment_type === "bank_us" ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Account Number *
+                        </label>
+                        <Input
+                          type="text"
+                          value={formData.account_number}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              account_number: e.target.value,
+                            })
+                          }
+                          placeholder="Enter account number"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Routing Number (ABA) *
+                        </label>
+                        <Input
+                          type="text"
+                          value={formData.routing_number}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              routing_number: e.target.value,
+                            })
+                          }
+                          placeholder="Enter routing number"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Account Type *
+                        </label>
+                        <select
+                          value={formData.account_type}
+                          onChange={(e) =>
+                            setFormData({ ...formData, account_type: e.target.value })
+                          }
+                          className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="checking">Checking Account</option>
+                          <option value="savings">Savings Account</option>
+                          <option value="business">Business Account</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bank Country
+                        </label>
+                        <Input
+                          type="text"
+                          value={formData.bank_country}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              bank_country: e.target.value,
+                            })
+                          }
+                          placeholder="e.g., United States"
+                        />
+                      </div>
+                    </>
+
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          IBAN *
+                        </label>
+                        <Input
+                          type="text"
+                          value={formData.iban}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              iban: e.target.value.toUpperCase(),
+                            })
+                          }
+                          placeholder="DE89 3704 0044 0532 0130 00"
+                          required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">International Bank Account Number</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          SWIFT/BIC Code *
+                        </label>
+                        <Input
+                          type="text"
+                          value={formData.swift_bic}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              swift_bic: e.target.value.toUpperCase(),
+                            })
+                          }
+                          placeholder="DEUTDEFFXXX"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bank Country
+                        </label>
+                        <Input
+                          type="text"
+                          value={formData.bank_country}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              bank_country: e.target.value,
+                            })
+                          }
+                          placeholder="e.g., Germany, France, UK"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account Number *
+                      Bank Address
                     </label>
                     <Input
                       type="text"
-                      value={formData.account_number}
+                      value={formData.bank_address}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          account_number: e.target.value,
+                          bank_address: e.target.value,
                         })
                       }
-                      placeholder="Enter account number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Routing Number
-                    </label>
-                    <Input
-                      type="text"
-                      value={formData.routing_number}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          routing_number: e.target.value,
-                        })
-                      }
-                      placeholder="Enter routing number"
+                      placeholder="Bank street address"
                     />
                   </div>
                 </>
@@ -389,6 +591,7 @@ export default function AdminPaymentDetails({ supabase }) {
                         })
                       }
                       placeholder="Enter wallet address"
+                      required
                     />
                   </div>
                   <div>
@@ -402,6 +605,7 @@ export default function AdminPaymentDetails({ supabase }) {
                         setFormData({ ...formData, network: e.target.value })
                       }
                       placeholder="e.g., Bitcoin Mainnet, ERC20, TRC20"
+                      required
                     />
                   </div>
                 </>
@@ -422,42 +626,9 @@ export default function AdminPaymentDetails({ supabase }) {
                   }
                   placeholder="0"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Minimum Deposit
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.min_deposit_amount}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      min_deposit_amount: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Maximum Deposit
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={formData.max_deposit_amount}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      max_deposit_amount: parseFloat(e.target.value) || 100000,
-                    })
-                  }
-                  placeholder="100000.00"
-                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Lower numbers show first
+                </p>
               </div>
 
               <div className="md:col-span-2">
@@ -471,7 +642,7 @@ export default function AdminPaymentDetails({ supabase }) {
                   }
                   rows={3}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Additional notes or instructions..."
+                  placeholder="Additional instructions, processing times, etc."
                 />
               </div>
 
@@ -526,8 +697,8 @@ export default function AdminPaymentDetails({ supabase }) {
                     <Bitcoin className="w-5 h-5 text-orange-500" />
                   )}
                   <CardTitle className="text-lg">
-                    {detail.payment_type === "bank"
-                      ? detail.bank_name
+                    {detail.payment_type === "bank_us" || detail.payment_type === "bank_europe"
+                      ? detail.bank_name || `${detail.payment_type === "bank_us" ? "US Bank" : "European Bank"} Account`
                       : `${detail.currency?.toUpperCase()} Wallet`}
                   </CardTitle>
                 </div>
@@ -539,9 +710,19 @@ export default function AdminPaymentDetails({ supabase }) {
                 </div>
               </div>
               <CardDescription>
-                {detail.payment_type === "bank"
-                  ? "Bank Transfer"
-                  : `Cryptocurrency - ${detail.network}`}
+                {detail.payment_type === "bank_us" ? (
+                  <div className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-blue-600" />
+                    <span>US Bank Transfer</span>
+                  </div>
+                ) : detail.payment_type === "bank_europe" ? (
+                  <div className="flex items-center gap-1">
+                    <Globe className="w-3 h-3 text-green-600" />
+                    <span>European Bank Transfer</span>
+                  </div>
+                ) : (
+                  `Cryptocurrency - ${detail.network}`
+                )}
               </CardDescription>
             </CardHeader>
 
@@ -553,28 +734,88 @@ export default function AdminPaymentDetails({ supabase }) {
                       <span className="text-gray-600">Account Name:</span>
                       <span className="font-medium">{detail.account_name}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Account Number:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">
-                          {showSensitive[`account_${detail.id}`]
-                            ? detail.account_number
-                            : "••••••••"}
-                        </span>
-                        <button
-                          onClick={() =>
-                            toggleSensitive(`account_${detail.id}`)
-                          }
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {showSensitive[`account_${detail.id}`] ? (
-                            <EyeOff className="w-3 h-3" />
-                          ) : (
-                            <Eye className="w-3 h-3" />
-                          )}
-                        </button>
+
+                    {detail.iban ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">IBAN:</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">
+                            {showSensitive[`iban_${detail.id}`]
+                              ? detail.iban
+                              : `${detail.iban?.substring(
+                                0,
+                                4
+                              )}...${detail.iban?.substring(
+                                detail.iban?.length - 4
+                              )}`}
+                          </span>
+                          <button
+                            onClick={() => toggleSensitive(`iban_${detail.id}`)}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            {showSensitive[`iban_${detail.id}`] ? (
+                              <EyeOff className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Account Number:</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">
+                            {showSensitive[`account_${detail.id}`]
+                              ? detail.account_number
+                              : "••••••••"}
+                          </span>
+                          <button
+                            onClick={() =>
+                              toggleSensitive(`account_${detail.id}`)
+                            }
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            {showSensitive[`account_${detail.id}`] ? (
+                              <EyeOff className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {detail.swift_bic && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">SWIFT/BIC:</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">
+                            {showSensitive[`swift_${detail.id}`]
+                              ? detail.swift_bic
+                              : `${detail.swift_bic?.substring(
+                                0,
+                                4
+                              )}...${detail.swift_bic?.substring(
+                                detail.swift_bic?.length - 3
+                              )}`}
+                          </span>
+                          <button
+                            onClick={() =>
+                              toggleSensitive(`swift_${detail.id}`)
+                            }
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            {showSensitive[`swift_${detail.id}`] ? (
+                              <EyeOff className="w-3 h-3" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {detail.routing_number && (
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Routing Number:</span>
@@ -597,6 +838,22 @@ export default function AdminPaymentDetails({ supabase }) {
                             )}
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {detail.bank_country && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Country:</span>
+                        <span className="font-medium">
+                          {detail.bank_country}
+                        </span>
+                      </div>
+                    )}
+
+                    {detail.bank_address && (
+                      <div className="text-sm">
+                        <span className="text-gray-600">Bank Address:</span>
+                        <p className="text-xs mt-1">{detail.bank_address}</p>
                       </div>
                     )}
                   </div>
@@ -643,11 +900,6 @@ export default function AdminPaymentDetails({ supabase }) {
                 </>
               )}
 
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                <div>Min: ${detail.min_deposit_amount}</div>
-                <div>Max: ${detail.max_deposit_amount}</div>
-              </div>
-
               {detail.notes && (
                 <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
                   <strong>Notes:</strong> {detail.notes}
@@ -674,7 +926,7 @@ export default function AdminPaymentDetails({ supabase }) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDelete(detail.id)} // Make sure it's calling handleDelete
+                    onClick={() => handleDelete(detail.id)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-3 h-3 mr-1" />
