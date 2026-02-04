@@ -45,7 +45,7 @@ export function AuthProvider({ children }) {
   // Helper to call your working resend-email function
   const resendEmail = async (email, type = 'signup') => {
     try {
-      const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/resend-email`;
+      const edgeFunctionUrl = `https://cdmulzkdcgbuyjdwgpfz.supabase.co/functions/v1/resend-email`;
       console.log('Calling resend-email function:', { email, type });
       
       const response = await fetch(
