@@ -6,10 +6,10 @@ console.log('All env vars:', import.meta.env);
 
 const appUrl = import.meta.env.VITE_APP_URL || 'http://localhost:3000';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_KEY;
 
 console.log('VITE_SUPABASE_URL:', supabaseUrl);
-console.log('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set (hidden)' : 'Not set');
+console.log('VITE_SUPABASE_KEY:', supabaseAnonKey ? 'Set (hidden)' : 'Not set');
 
 // If env vars not set, use hardcoded values
 const finalSupabaseUrl = supabaseUrl || 'https://cdmulzkdcgbuyjdwgpfz.supabase.co';

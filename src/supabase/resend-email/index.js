@@ -7,50 +7,108 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      { headers: corsHeaders, status: 405 }
+    )
+  }
+
   try {
+    // Get the API key from environment
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendApiKey) throw new Error('Missing RESEND_API_KEY')
     
+    if (!resendApiKey) {
+      console.error('RESEND_API_KEY is not set in environment variables')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Server configuration error' 
+        }),
+        { headers: corsHeaders, status: 500 }
+      )
+    }
+
+    // Parse request body
+    let email, type
+    try {
+      const body = await req.json()
+      email = body.email
+      type = body.type || 'signup'
+    } catch (parseError) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid JSON body' }),
+        { headers: corsHeaders, status: 400 }
+      )
+    }
+
+    // Validate email
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Valid email is required' }),
+        { headers: corsHeaders, status: 400 }
+      )
+    }
+
+    // Initialize Resend
     const resend = new Resend(resendApiKey)
     
-    const { email, type = 'signup' } = await req.json()
-    
-    if (!email) throw new Error('Email is required')
-    
-    const subject = type === 'signup' 
-      ? 'Welcome to Aureus Capital' 
-      : 'Reset Your Password'
-    
-    const html = type === 'signup'
-      ? '<h1>Welcome! Please verify your email.</h1>'
-      : '<h1>Click here to reset your password</h1>'
-    
+    // Determine email content based on type
+    const templates = {
+      signup: {
+        subject: 'Welcome to Aureus Capital',
+        html: '<h1>Welcome! Please verify your email.</h1><p>Thank you for signing up.</p>'
+      },
+      reset: {
+        subject: 'Reset Your Password',
+        html: '<h1>Reset Your Password</h1><p>Click the link below to reset your password.</p>'
+      }
+    }
+
+    const template = templates[type] || templates.signup
+
+    // Send email
     const { data, error } = await resend.emails.send({
       from: 'Aureus Capital <noreply@resend.dev>',
-      to: email,
-      subject: subject,
-      html: html,
+      to: [email], // Wrap in array for Resend API
+      subject: template.subject,
+      html: template.html,
       headers: { 'X-Entity-Ref-ID': crypto.randomUUID() },
       click_tracking: false,
       open_tracking: false,
     })
 
-    if (error) throw error
+    if (error) {
+      console.error('Resend API error:', error)
+      throw error
+    }
+
+    console.log('Email sent successfully:', data?.id)
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Email sent' }),
+      JSON.stringify({ 
+        success: true, 
+        message: 'Email sent successfully',
+        emailId: data?.id 
+      }),
       { headers: corsHeaders, status: 200 }
     )
     
   } catch (error) {
+    console.error('Error in edge function:', error)
+    
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { headers: corsHeaders, status: 400 }
+      JSON.stringify({ 
+        success: false, 
+        error: error.message || 'An unexpected error occurred' 
+      }),
+      { headers: corsHeaders, status: 500 }
     )
   }
 })
