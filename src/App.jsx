@@ -52,6 +52,7 @@ import AdminTransactions from "./Admin/AdminTransactions";
 import AdminInvestorsPage from "../src/Admin/AdminInvestors";
 import CreateInvestorPage from "../src/Admin/createInvestors";
 import EditInvestorPage from "../src/Admin/editInvestors";
+import UpdatePassword from "./components/UpdatePassword";
 
 
 console.log('Environment variables check:');
@@ -1641,6 +1642,8 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
       </div>
     </div>
   );
+  case "update-password":
+  return <UpdatePassword onNavigate={handleNavigation} />;
         case "login":
           return (
             <AuthScreen

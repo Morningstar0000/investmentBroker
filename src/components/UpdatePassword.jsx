@@ -11,24 +11,62 @@ const UpdatePassword = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [hasValidToken, setHasValidToken] = useState(false);
 
   useEffect(() => {
-    // Check if we have an access token in the URL (from email link)
-    const hash = window.location.hash;
-    if (hash) {
+    // Check if we have a valid recovery token in the URL
+    const checkRecoverySession = async () => {
+      const hash = window.location.hash;
       const params = new URLSearchParams(hash.substring(1));
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
-      
-      if (accessToken) {
-        // Supabase will automatically handle the session from the URL
-        console.log('Password reset token detected in URL');
+      const type = params.get('type');
+
+      console.log('URL params:', { accessToken, refreshToken, type });
+
+      if (type === 'recovery' && accessToken) {
+        try {
+          // Set the session from the recovery token
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            setError('Invalid or expired reset link. Please request a new one.');
+            return;
+          }
+
+          // Get the current user to verify
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            console.log('Recovery session set for user:', user.email);
+            setHasValidToken(true);
+          } else {
+            setError('Invalid reset link. Please request a new one.');
+          }
+        } catch (err) {
+          console.error('Error setting recovery session:', err);
+          setError('Failed to process reset link. Please try again.');
+        }
+      } else {
+        setError('No valid reset token found. Please use the link from your email.');
       }
-    }
+    };
+
+    checkRecoverySession();
   }, []);
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
+    
+    if (!hasValidToken) {
+      setError('Please use a valid password reset link from your email.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setMessage('');
@@ -46,13 +84,17 @@ const UpdatePassword = ({ onNavigate }) => {
     }
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      // Update the user's password
+      const { error: updateError } = await supabase.auth.updateUser({
         password: password
       });
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       setMessage('✅ Password updated successfully! Redirecting to login...');
+      
+      // Sign out the recovery session
+      await supabase.auth.signOut();
       
       // Redirect to login after 3 seconds
       setTimeout(() => {
@@ -92,67 +134,83 @@ const UpdatePassword = ({ onNavigate }) => {
           </CardHeader>
 
           <CardContent>
-            {message && (
-              <div className="p-3 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
-                {message}
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium">
-                  New Password
-                </label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="text-sm font-medium">
-                  Confirm Password
-                </label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-400 hover:bg-blue-500"
-              >
-                {loading ? 'Updating...' : 'Update Password'}
-              </Button>
-
-              <div className="text-center text-sm text-slate-600">
+            {!hasValidToken ? (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-yellow-700">
+                  {error || 'Please use the password reset link from your email.'}
+                </p>
                 <button
-                  type="button"
                   onClick={() => onNavigate('login')}
-                  className="text-blue-400 hover:text-blue-700 font-medium"
+                  className="mt-2 text-blue-500 hover:text-blue-700 font-medium"
                 >
                   Back to Login
                 </button>
               </div>
-            </form>
+            ) : (
+              <>
+                {message && (
+                  <div className="p-3 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
+                    {message}
+                  </div>
+                )}
+
+                {error && (
+                  <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <label htmlFor="password" className="text-sm font-medium">
+                      New Password
+                    </label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Enter new password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="confirmPassword" className="text-sm font-medium">
+                      Confirm Password
+                    </label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-blue-400 hover:bg-blue-500"
+                  >
+                    {loading ? 'Updating...' : 'Update Password'}
+                  </Button>
+
+                  <div className="text-center text-sm text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('login')}
+                      className="text-blue-400 hover:text-blue-700 font-medium"
+                    >
+                      Back to Login
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
