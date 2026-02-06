@@ -2,20 +2,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 console.log('=== Loading Supabase Client ===');
-console.log('All env vars:', import.meta.env);
 
+// Get the app URL from environment, default to localhost for development
 const appUrl = import.meta.env.VITE_APP_URL || 'http://localhost:3000';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_KEY;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log('VITE_SUPABASE_URL:', supabaseUrl);
-console.log('VITE_SUPABASE_KEY:', supabaseAnonKey ? 'Set (hidden)' : 'Not set');
+console.log('App URL:', appUrl);
+console.log('Supabase URL:', supabaseUrl);
+console.log('Supabase Key:', supabaseKey ? 'Set (hidden)' : 'Not set');
 
-// If env vars not set, use hardcoded values
 const finalSupabaseUrl = supabaseUrl || 'https://cdmulzkdcgbuyjdwgpfz.supabase.co';
-const finalSupabaseKey = supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbXVsemtkY2didXlqZHdncGZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNjkxODMsImV4cCI6MjA2ODg0NTE4M30.zLvqHEVwAj-F9u6fAFT_jtb5eupVZRLJWSRLUgpk-x4';
-
-console.log('Using Supabase URL:', finalSupabaseUrl);
+const finalSupabaseKey = supabaseKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkbXVsemtkY2didXlqZHdncGZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNjkxODMsImV4cCI6MjA2ODg0NTE4M30.zLvqHEVwAj-F9u6fAFT_jtb5eupVZRLJWSRLUgpk-x4';
 
 export const supabase = createClient(finalSupabaseUrl, finalSupabaseKey, {
   auth: {

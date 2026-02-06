@@ -1,221 +1,144 @@
-"use client"
-import React, { useState, useEffect } from 'react';
+// src/pages/UpdatePassword.jsx
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../client';
-import { Button } from './ui/Button';
-import Input from './ui/Input';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 
-const UpdatePassword = ({ onNavigate }) => {
+export default function UpdatePassword() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [hasValidToken, setHasValidToken] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we have a valid recovery token in the URL
-    const checkRecoverySession = async () => {
-      const hash = window.location.hash;
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
-      const type = params.get('type');
-
-      console.log('URL params:', { accessToken, refreshToken, type });
-
-      if (type === 'recovery' && accessToken) {
-        try {
-          // Set the session from the recovery token
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-
-          if (sessionError) {
-            console.error('Session error:', sessionError);
-            setError('Invalid or expired reset link. Please request a new one.');
-            return;
-          }
-
-          // Get the current user to verify
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          if (user) {
-            console.log('Recovery session set for user:', user.email);
-            setHasValidToken(true);
-          } else {
-            setError('Invalid reset link. Please request a new one.');
-          }
-        } catch (err) {
-          console.error('Error setting recovery session:', err);
-          setError('Failed to process reset link. Please try again.');
-        }
-      } else {
-        setError('No valid reset token found. Please use the link from your email.');
+    // Check if user has a session (they shouldn't be logged in yet)
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        setError('Invalid or expired reset link. Please request a new password reset.');
       }
     };
-
-    checkRecoverySession();
+    checkSession();
   }, []);
 
-  const handleUpdatePassword = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!hasValidToken) {
-      setError('Please use a valid password reset link from your email.');
-      return;
-    }
-
-    setLoading(true);
     setError('');
     setMessage('');
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
-      setLoading(false);
       return;
     }
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
+
     try {
-      // Update the user's password
-      const { error: updateError } = await supabase.auth.updateUser({
+      const { error } = await supabase.auth.updateUser({
         password: password
       });
 
-      if (updateError) throw updateError;
+      if (error) throw error;
 
-      setMessage('✅ Password updated successfully! Redirecting to login...');
+      setMessage('Password updated successfully! Redirecting to login...');
       
-      // Sign out the recovery session
+      // Sign out after password update
       await supabase.auth.signOut();
       
-      // Redirect to login after 3 seconds
+      // Redirect to login after 2 seconds
       setTimeout(() => {
-        onNavigate('login');
-      }, 3000);
-
+        navigate('/login');
+      }, 2000);
+      
     } catch (error) {
-      console.error('Password update error:', error);
-      setError(error.message || 'Failed to update password');
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-block">
-            <div className="flex items-center justify-center space-x-2">
-              <div className="w-8 h-8 bg-blue-400 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
-              <span className="text-2xl font-bold text-slate-900">Aureus Capital</span>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Set New Password
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Please enter your new password
+          </p>
+        </div>
+        
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
+        
+        {message && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+            {message}
+          </div>
+        )}
+        
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="password" className="sr-only">New Password</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="New Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label htmlFor="confirm-password" className="sr-only">Confirm Password</label>
+              <input
+                id="confirm-password"
+                name="confirm-password"
+                type="password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Confirm New Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={loading}
+              />
             </div>
           </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {loading ? 'Updating Password...' : 'Update Password'}
+            </button>
+          </div>
+        </form>
+        
+        <div className="text-center">
+          <button
+            onClick={() => navigate('/login')}
+            className="text-sm text-blue-600 hover:text-blue-500"
+          >
+            Back to Login
+          </button>
         </div>
-
-        <Card className="w-full">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold text-slate-900">
-              Set New Password
-            </CardTitle>
-            <p className="text-slate-600 mt-2">
-              Create a new password for your account
-            </p>
-          </CardHeader>
-
-          <CardContent>
-            {!hasValidToken ? (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-700">
-                  {error || 'Please use the password reset link from your email.'}
-                </p>
-                <button
-                  onClick={() => onNavigate('login')}
-                  className="mt-2 text-blue-500 hover:text-blue-700 font-medium"
-                >
-                  Back to Login
-                </button>
-              </div>
-            ) : (
-              <>
-                {message && (
-                  <div className="p-3 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
-                    {message}
-                  </div>
-                )}
-
-                {error && (
-                  <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
-                    {error}
-                  </div>
-                )}
-
-                <form onSubmit={handleUpdatePassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <label htmlFor="password" className="text-sm font-medium">
-                      New Password
-                    </label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter new password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="confirmPassword" className="text-sm font-medium">
-                      Confirm Password
-                    </label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm new password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-blue-400 hover:bg-blue-500"
-                  >
-                    {loading ? 'Updating...' : 'Update Password'}
-                  </Button>
-
-                  <div className="text-center text-sm text-slate-600">
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('login')}
-                      className="text-blue-400 hover:text-blue-700 font-medium"
-                    >
-                      Back to Login
-                    </button>
-                  </div>
-                </form>
-              </>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
-};
-
-export default UpdatePassword;
+}

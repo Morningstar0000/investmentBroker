@@ -55,6 +55,7 @@ import EditInvestorPage from "../src/Admin/editInvestors";
 import UpdatePassword from "./components/UpdatePassword";
 
 
+// Change it to check for VITE_SUPABASE_KEY instead:
 console.log('Environment variables check:');
 console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
 console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not set');
