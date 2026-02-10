@@ -135,19 +135,13 @@ export default function Dashboard({
             <TrendingUp className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
               ${((metricsData?.totalBalance || 0) + (metricsData?.totalOpenPnl || 0)).toLocaleString()}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <div className="text-xs text-green-600 dark:text-green-600 space-y-1">
               <div>Account: ${(metricsData?.totalBalance || 0).toLocaleString()}</div>
-              <div>Open P&L: ${(metricsData?.totalOpenPnl || 0) >= 0 ? '+' : ''}${(metricsData?.totalOpenPnl || 0).toLocaleString()}</div>
-              <div className="text-gray-400 italic">
-                DB Equity: ${(metricsData?.equity || 0).toLocaleString()}
-              </div>
             </div>
-            <div className="text-xs text-gray-400 mt-1">
-              {metricsData?.openPositions || 0} open position(s)
-            </div>
+          
           </CardContent>
         </Card>
 

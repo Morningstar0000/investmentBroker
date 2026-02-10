@@ -92,3 +92,179 @@ code {
   text-overflow: ellipsis;
   max-width: 120px;
 }
+
+/* Mobile-specific styling for bank details cards */
+@media (max-width: 768px) {
+  /* Target the main bank details card */
+  .rounded-lg.shadow-inner.border-dashed {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 16px 0 !important;
+    padding: 0 !important;
+    border-radius: 12px !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+  }
+
+  /* Card content area */
+  .rounded-lg.shadow-inner.border-dashed .p-4 {
+    padding: 20px !important;
+  }
+
+  /* Bank details rows - make them more spacious */
+  .space-y-3 > div {
+    display: flex !important;
+    flex-direction: column !important;
+    margin-bottom: 16px !important;
+    padding-bottom: 16px !important;
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+
+  .space-y-3 > div:last-child {
+    border-bottom: none !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Bank info labels and values */
+  .space-y-3 > div .text-gray-600,
+  .space-y-3 > div .text-gray-400 {
+    font-weight: 500 !important;
+    margin-bottom: 6px !important;
+    font-size: 14px !important;
+  }
+
+  /* Bank info values - make them more prominent */
+  .space-y-3 > div .text-gray-800,
+  .space-y-3 > div .text-gray-200 {
+    font-weight: 600 !important;
+    font-size: 15px !important;
+    word-break: break-word !important;
+  }
+
+  /* Account number and routing number containers */
+  .space-y-3 > div .text-right {
+    width: 100% !important;
+  }
+
+  .space-y-3 > div .flex.items-center.gap-2 {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+  }
+
+  /* Make the code/display boxes wider */
+  .space-y-3 > div .text-xs.break-all,
+  .space-y-3 > div .bg-gray-100.dark\\:bg-gray-800 {
+    flex: 1 !important;
+    min-width: 0 !important;
+    padding: 10px 12px !important;
+    margin-right: 8px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    word-break: break-all !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* Important notes section */
+  .border-t.border-gray-200.dark\\:border-gray-700 {
+    margin-top: 20px !important;
+    padding-top: 20px !important;
+  }
+
+  .border-t.border-gray-200.dark\\:border-gray-700 .text-xs {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Bank header */
+  .flex.items-center.space-x-2.mb-2 {
+    margin-bottom: 20px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+
+  .flex.items-center.space-x-2.mb-2 .font-semibold {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+  }
+
+  /* Crypto wallet address box */
+  code.text-xs.bg-gray-100.dark\\:bg-gray-800.p-2.rounded.break-all.flex-1 {
+    padding: 12px !important;
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    margin-right: 8px !important;
+  }
+
+  /* Copy buttons */
+  button[class*="CopyButton"] {
+    flex-shrink: 0 !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+/* For very small screens (under 400px) */
+@media (max-width: 400px) {
+  .rounded-lg.shadow-inner.border-dashed .p-4 {
+    padding: 16px !important;
+  }
+
+  .space-y-3 > div {
+    margin-bottom: 14px !important;
+    padding-bottom: 14px !important;
+  }
+
+  /* Make the flex layout more compact for very small screens */
+  .space-y-3 > div .flex.items-center.gap-2 {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .space-y-3 > div .text-xs.break-all,
+  .space-y-3 > div .bg-gray-100.dark\\:bg-gray-800 {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  button[class*="CopyButton"] {
+    align-self: flex-start !important;
+  }
+}
+
+/* Tablet responsive adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .rounded-lg.shadow-inner.border-dashed {
+    max-width: 90% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+/* Add this to your global.css or App.css */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+

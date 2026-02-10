@@ -2,10 +2,34 @@ import { supabase } from '../client'
 
 export const updateUserMetrics = async (userId) => {
   try {
-    console.log(`🚀🚀🚀 updateUserMetrics STARTED for user: ${userId}`)
+    console.log(`🚀 updateUserMetrics STARTED for user: ${userId}`)
     
-    // 1. Fetch user's open positions
-    console.log(`📊 Step 1: Fetching positions for user ${userId}`)
+    // STEP 1: FIRST get wallet transfers to calculate STARTING BALANCE
+    console.log(`💰 Step 1: Fetching wallet transfers for starting balance`)
+    const { data: walletTransfers } = await supabase
+      .from("wallet_transfers")
+      .select("amount, transfer_type, status")
+      .eq("user_id", userId)
+      .eq("status", "completed")
+
+    // Calculate starting balance from wallet transfers
+    const totalDeposits = walletTransfers
+      ?.filter(t => t.transfer_type === "wallet_to_trading" || t.transfer_type === "deposit")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) || 0
+
+    const totalWithdrawals = walletTransfers
+      ?.filter(t => t.transfer_type === "trading_to_wallet" || t.transfer_type === "withdrawal")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0) || 0
+
+    const startingBalance = totalDeposits - totalWithdrawals
+
+    console.log(`💵 Starting balance from wallet transfers: $${startingBalance}`, {
+      totalDeposits,
+      totalWithdrawals
+    })
+
+    // STEP 2: Fetch positions
+    console.log(`📊 Step 2: Fetching positions`)
     const [openRes, closedRes] = await Promise.all([
       supabase.from("open_positions").select("*").eq("user_id", userId),
       supabase.from("closed_positions").select("*").eq("user_id", userId)
@@ -17,42 +41,45 @@ export const updateUserMetrics = async (userId) => {
     const openPositions = openRes.data || []
     const closedPositions = closedRes.data || []
 
-    console.log(`✅ Found ${openPositions.length} open positions, ${closedPositions.length} closed positions`)
+    console.log(`✅ Found ${openPositions.length} open, ${closedPositions.length} closed positions`)
 
-    // 2. Calculate account_balance from ALL closed positions P&L
-    const accountBalance = closedPositions.reduce((sum, pos) => {
-      return sum + (pos.pnl || 0)
+    // STEP 3: Calculate total P&L from closed positions
+    const totalClosedPnl = closedPositions.reduce((sum, pos) => {
+      return sum + (parseFloat(pos.pnl) || 0)
     }, 0)
 
-    console.log(`💵 Calculated account_balance from ${closedPositions.length} closed positions = $${accountBalance}`)
+    console.log(`💵 Total P&L from closed positions = $${totalClosedPnl}`)
 
-    // 3. Calculate total open P&L
-    const totalOpenPnl = openPositions.reduce((sum, pos) => sum + (pos.pnl || 0), 0)
-    console.log(`💰 Calculated total_open_pnl = $${totalOpenPnl}`)
+    // STEP 4: CRITICAL FIX: Account Balance = Starting Balance + Total Closed P&L
+    const accountBalance = startingBalance + totalClosedPnl
+    console.log(`💰 Account Balance = $${startingBalance} (starting) + $${totalClosedPnl} (closed P&L) = $${accountBalance}`)
 
-    // 4. Calculate equity: account_balance + total_open_pnl
+    // STEP 5: Calculate total open P&L
+    const totalOpenPnl = openPositions.reduce((sum, pos) => sum + (parseFloat(pos.pnl) || 0), 0)
+    console.log(`📈 Total Open P&L = $${totalOpenPnl}`)
+
+    // STEP 6: Calculate equity: Account Balance + Total Open P&L
     const equity = accountBalance + totalOpenPnl
-    console.log(`🧮 New equity = $${accountBalance} + $${totalOpenPnl} = $${equity}`)
+    console.log(`🧮 Equity = $${accountBalance} + $${totalOpenPnl} = $${equity}`)
 
-    // 5. Count open positions
+    // STEP 7: Count open positions
     const openPositionsCount = openPositions.length
     console.log(`🔢 Open positions count = ${openPositionsCount}`)
 
-    // 6. Get existing win_rate from database (for manual control)
-    console.log(`📊 Getting existing user_metrics for user ${userId}`)
+    // STEP 8: Get existing metrics for win_rate
+    console.log(`📊 Getting existing user_metrics`)
     
     const { data: existingMetrics } = await supabase
       .from("user_metrics")
-      .select("win_rate, today_pnl_percent, max_drawdown, profit_factor, total_trades")
+      .select("*")
       .eq("user_id", userId)
       .maybeSingle()
 
-    const winRate = existingMetrics?.win_rate || 0
-    const existingTodayPnlPercent = existingMetrics?.today_pnl_percent || 0
+    // Calculate win rate
+     const winRate = existingMetrics?.win_rate || 0
+    console.log(`🎯 Using existing win_rate (preserved): ${winRate}%`)
     
-    console.log(`🎯 Using existing win_rate: ${winRate}%`)
-
-    // 7. Calculate today's P&L percentage
+    // Calculate today's P&L percentage
     const today = new Date().toISOString().split('T')[0]
     const todayClosedPnL = closedPositions
       .filter(pos => {
@@ -62,31 +89,30 @@ export const updateUserMetrics = async (userId) => {
       })
       .reduce((sum, pos) => sum + (pos.pnl || 0), 0)
 
-    // Use existing today_pnl_percent or calculate new one
     const todayPnlPercent = accountBalance > 0 
       ? parseFloat(((todayClosedPnL / accountBalance) * 100).toFixed(2))
-      : existingTodayPnlPercent
+      : 0
 
     console.log(`📈 Today's P&L: $${todayClosedPnL} (${todayPnlPercent}% of balance)`)
 
-    // 8. Prepare update data - preserve existing win_rate
+    // STEP 9: Prepare update data - INCLUDE ALL REQUIRED FIELDS
     const updateData = {
       user_id: userId,
       account_balance: accountBalance,
       total_open_pnl: totalOpenPnl,
       equity: equity,
+      starting_balance: startingBalance,
       today_pnl_percent: todayPnlPercent,
-      win_rate: winRate, // Keep existing win_rate
+      win_rate: winRate,
       open_positions: openPositionsCount,
-      // Preserve other existing fields
-      ...(existingMetrics?.max_drawdown !== undefined && { max_drawdown: existingMetrics.max_drawdown }),
-      ...(existingMetrics?.profit_factor !== undefined && { profit_factor: existingMetrics.profit_factor }),
-      ...(existingMetrics?.total_trades !== undefined && { total_trades: existingMetrics.total_trades }),
+      // updated_at: new Date().toISOString(),
+      // Include these if your database requires them (check your schema)
+      // today_pnl: todayClosedPnL || 0
     }
 
     console.log(`📤 Upserting user_metrics with:`, updateData)
 
-    // 9. UPSERT user_metrics
+    // STEP 10: UPSERT user_metrics
     const { error: updateError } = await supabase
       .from("user_metrics")
       .upsert(updateData, {
@@ -94,23 +120,25 @@ export const updateUserMetrics = async (userId) => {
       })
 
     if (updateError) {
-      console.error(`❌❌❌ ERROR updating user_metrics:`, updateError)
+      console.error(`❌ ERROR updating user_metrics:`, updateError)
       throw updateError
     }
 
-    console.log(`✅✅✅ SUCCESS! Updated user_metrics for user ${userId}`)
+    console.log(`✅ SUCCESS! Updated user_metrics for user ${userId}`)
+    console.log(`   Starting Balance: $${startingBalance}`)
     console.log(`   Account Balance: $${accountBalance}`)
     console.log(`   Total Open P&L: $${totalOpenPnl}`)
     console.log(`   Equity: $${equity}`)
     console.log(`   Open Positions: ${openPositionsCount}`)
-    console.log(`   Win Rate (preserved): ${winRate}%`)
+    console.log(`   Win Rate: ${winRate}%`)
+    console.log(`   Today's P&L %: ${todayPnlPercent}%`)
     
     return {
       success: true,
       metrics: updateData
     }
   } catch (error) {
-    console.error(`❌❌❌ FATAL ERROR in updateUserMetrics:`, error)
+    console.error(`❌ FATAL ERROR in updateUserMetrics:`, error)
     return {
       success: false,
       error: error.message

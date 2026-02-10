@@ -210,10 +210,7 @@ export default function AccountTypeSection({
                         </>
                       )}
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                      <Plus className="w-4 h-4 mr-2" /> {/* Changed to Plus as TrendingUp was removed */}
-                      Analytics
-                    </Button>
+                   
                   </div>
                 </div>
               </CardContent>

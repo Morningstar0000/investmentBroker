@@ -10,6 +10,7 @@ import ReactCountryFlag from "react-country-flag";
 import { supabase } from '../client'; // Import supabase client
 import { useToast } from '../context/ToastContext'
 import { countriesWithCallingCodes, getCallingCodeByCountryCode } from '../utils/countries';
+import { Loader2 } from "lucide-react"; // Import Loader2 icon
 
 const AuthScreen = ({ onLogin, initialMode = 'login', onToggleMode }) => {
   const { addToast } = useToast()
@@ -25,7 +26,7 @@ const AuthScreen = ({ onLogin, initialMode = 'login', onToggleMode }) => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [marketingEmails, setMarketingEmails] = useState(false);
   const [mode, setMode] = useState(initialMode); // 'login', 'register', or 'forgot-password'
-  const { signIn, signUp, loading, error, resetPassword } = useAuth();
+  const { signIn, signUp, loading, resetPassword } = useAuth();
   
   
   // Forgot password states
@@ -85,49 +86,53 @@ const handleForgotPassword = async () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (mode === 'login') {
-        await signIn(email, password); 
-         addToast('Login successful!', 'success');
+  e.preventDefault();
+  try {
+    if (mode === 'login') {
+      await signIn(email, password); 
+      // AuthContext now shows the success toast
+      // So we don't need to show it here
       
       // Delay redirect to allow toast to show
       setTimeout(() => {
         onLogin();
-      }, 500); // 500ms delay
-      } else if (mode === 'register') {
-        // Validate passwords match
-        if (password !== confirmPassword) {
-          alert('Passwords do not match');
-          return;
-        }
-
-        if (!termsAccepted) {
-          alert('Please accept the Terms of Service and Privacy Policy');
-          return;
-        }
-
-        // Find the country name from the selected code
-        const selectedCountry = sortedCountries.find(c => c.code === country);
-        const countryName = selectedCountry ? selectedCountry.name : country;
-
-        await signUp({
-          email,
-          password,
-          firstName,
-          lastName,
-          phone,
-          country: countryName,
-          address,
-        });
-        addToast('Signup successful! Please log in.', 'success')
-        setMode('login');
+      }, 500);
+    } else if (mode === 'register') {
+      // Validate passwords match
+      if (password !== confirmPassword) {
+        addToast('Passwords do not match', 'error');
+        return;
       }
-    } catch (err) {
-     addToast(`Error: ${err.message}`, 'error'),
-      console.error(err);
+
+      if (!termsAccepted) {
+        addToast('Please accept the Terms of Service and Privacy Policy', 'error');
+        return;
+      }
+
+      // Find the country name from the selected code
+      const selectedCountry = sortedCountries.find(c => c.code === country);
+      const countryName = selectedCountry ? selectedCountry.name : country;
+
+      await signUp({
+        email,
+        password,
+        firstName,
+        lastName,
+        phone,
+        country: countryName,
+        address,
+      });
+      // AuthContext shows the signup success toast
+      // So we don't need to show it here
+      setMode('login');
     }
-  };
+  } catch (err) {
+    // AuthContext now handles the error toasts
+    // So we don't need to show them here
+    // Just log the error for debugging
+    console.error('Auth error:', err);
+  }
+};
 
   const toggleMode = () => {
     const newMode = mode === 'login' ? 'register' : 'login';
@@ -176,13 +181,11 @@ const handleForgotPassword = async () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
+        <div className="text-center">
           <div className="inline-block">
             <div className="flex items-center justify-center space-x-2 hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 bg-blue-400 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
-              <span className="text-2xl font-bold text-slate-900">Aureus Capital</span>
+              
+              <img src="Logo.png" alt="" width={300}/>
             </div>
           </div>
         </div>
@@ -202,11 +205,11 @@ const handleForgotPassword = async () => {
           </CardHeader>
 
           <CardContent className="space-y-4">
-            {error && (
+            {/* {error && (
               <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900 dark:text-red-200" role="alert">
                 {error.message}
               </div>
-            )}
+            )} */}
 
             {/* FORGOT PASSWORD FORM */}
             {mode === 'forgot-password' ? (
@@ -249,10 +252,15 @@ const handleForgotPassword = async () => {
                     <div className="flex gap-2">
                       <Button
                         onClick={handleForgotPassword}
-                        className="flex-1 bg-blue-400 hover:bg-blue-500"
-                        disabled={!forgotPasswordEmail}
+                        className="flex-1 bg-blue-400 hover:bg-blue-500 min-w-[120px]"
+                        disabled={!forgotPasswordEmail || loading}
                       >
-                        Send Reset Link
+                        {loading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Sending...</span>
+                          </div>
+                        ) : 'Send Reset Link'}
                       </Button>
                       <Button
                         variant="outline"
@@ -547,13 +555,19 @@ const handleForgotPassword = async () => {
                         </div>
                       </div>
                     )}
-
+                      
+                      {console.log('AuthScreen - loading state:', loading, 'mode:', mode)}
                     <Button
                       type="submit"
                       disabled={loading}
-                      className="w-full bg-blue-400 hover:bg-blue-500"
+                      className="w-full bg-blue-400 hover:bg-blue-500 min-w-[120px]"
                     >
-                      {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+                      {loading ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>{mode === 'login' ? 'Signing in...' : 'Creating account...'}</span>
+                        </div>
+                      ) : mode === 'login' ? 'Sign In' : 'Create Account'}
                     </Button>
 
                     <div className="relative">

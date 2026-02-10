@@ -117,7 +117,7 @@ export default function TradingSection({
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${tradingSummary.today_pnl >= 0 ? "text-green-600" : "text-red-600"}`}
+              className={`text-2xl font-bold ${tradingSummary.today_pnl >= 0 ? "text-blue-600" : "text-red-600"}`}
             >
               {tradingSummary.today_pnl >= 0 ? "+" : ""}${formatNumber(tradingSummary.today_pnl)}
             </div>

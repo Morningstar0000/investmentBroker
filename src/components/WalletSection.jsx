@@ -54,114 +54,152 @@ const WalletSection = ({ supabase, userId }) => {
   const [transferToAccountAmount, setTransferToAccountAmount] = useState("");
 
   const handleTransferToTradingAccount = async () => {
-    const amount = parseFloat(transferToAccountAmount);
+  const amount = parseFloat(transferToAccountAmount);
 
-    if (isNaN(amount) || amount <= 0) {
-      addToast('Please enter a valid amount.', 'error');
-      return;
+  if (isNaN(amount) || amount <= 0) {
+    addToast('Please enter a valid amount.', 'error');
+    return;
+  }
+
+  if (amount > walletData.availableBalance) {
+    addToast('Insufficient wallet balance.', 'error');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // 1. Update wallet table - decrease available balance
+    const newWalletBalance = walletData.availableBalance - amount;
+    const { error: walletError } = await supabase
+      .from('wallets')
+      .update({
+        available_balance: newWalletBalance
+      })
+      .eq('user_id', userId);
+
+    if (walletError) throw walletError;
+
+    // 2. Get current user_metrics
+    const { data: currentMetric, error: fetchError } = await supabase
+      .from('user_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // Check if record exists
+    const recordExists = !fetchError || (fetchError && fetchError.code !== 'PGRST116');
+
+    // 🔴🔴🔴 CRITICAL FIX: Calculate starting_balance 🔴🔴🔴
+    let startingBalance = 0;
+    let currentBalance = 0;
+    let currentEquity = 0;
+    let currentEquityNumeric = 0;
+    let currentTotalOpenPnl = 0;
+
+    if (recordExists && currentMetric) {
+      // Use existing values
+      startingBalance = currentMetric.starting_balance || 0;
+      currentBalance = currentMetric.account_balance || 0;
+      currentEquity = currentMetric.equity || 0;
+      currentEquityNumeric = currentMetric.equity_numeric || 0;
+      currentTotalOpenPnl = currentMetric.total_open_pnl || 0;
     }
 
-    if (amount > walletData.availableBalance) {
-      addToast('Insufficient wallet balance.', 'error');
-      return;
-    }
+    // 🔴🔴🔴 KEY FIX: When transferring to trading account, 
+    // you're ADDING to the starting balance, not just account balance
+    // The starting balance represents ALL wallet transfers to trading
+    const newStartingBalance = startingBalance + amount;
+    const newAccountBalance = currentBalance + amount;
+    const newEquity = currentEquity + amount;
+    const newEquityNumeric = currentEquityNumeric + amount;
 
-    setLoading(true);
+    // Prepare the data
+    const upsertData = {
+      user_id: userId,
+      starting_balance: newStartingBalance, // 🔴 THIS IS CRITICAL
+      account_balance: newAccountBalance,
+      equity: newEquity,
+     
+      today_pnl_percent: recordExists && currentMetric?.today_pnl_percent ? currentMetric.today_pnl_percent : 0,
+      open_positions: recordExists && currentMetric?.open_positions ? currentMetric.open_positions : 0,
+      win_rate: recordExists && currentMetric?.win_rate ? currentMetric.win_rate : 0,
+      total_open_pnl: currentTotalOpenPnl,
+      
+    };
 
-    try {
-      // 1. Update wallet table - decrease available balance
-      const newWalletBalance = walletData.availableBalance - amount;
-      const { error: walletError } = await supabase
-        .from('wallets')
-        .update({
-          available_balance: newWalletBalance
-        })
-        .eq('user_id', userId);
+    console.log('💰 Transferring to trading account:', {
+      amount,
+      oldStartingBalance: startingBalance,
+      newStartingBalance,
+      oldAccountBalance: currentBalance,
+      newAccountBalance
+    });
 
-      if (walletError) throw walletError;
+    // Update or insert user_metrics record
+    const { error: metricError } = await supabase
+      .from('user_metrics')
+      .upsert(upsertData, {
+        onConflict: 'user_id'
+      });
 
-      // 2. Get current user_metrics to preserve existing values
-      const { data: currentMetric, error: fetchError } = await supabase
-        .from('user_metrics')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+    if (metricError) throw metricError;
 
-      // If no record exists or fetch error (except "no rows" error), handle it
-      const recordExists = !fetchError || (fetchError && fetchError.code !== 'PGRST116');
-
-      // Calculate new values
-      const currentBalance = recordExists && currentMetric?.account_balance ? currentMetric.account_balance : 0;
-      const newAccountBalance = currentBalance + amount;
-
-      // Get current equity or use account balance as equity
-      const currentEquity = recordExists && currentMetric?.equity ? currentMetric.equity : currentBalance;
-      const newEquity = currentEquity + amount;
-
-      // Get current equity_numeric or use same as equity
-      const currentEquityNumeric = recordExists && currentMetric?.equity_numeric ? currentMetric.equity_numeric : currentBalance;
-      const newEquityNumeric = currentEquityNumeric + amount;
-
-      // Prepare the data with ALL required fields from your table
-      const upsertData = {
+    // 3. Also create a wallet_transfers record for tracking
+    const { error: transferError } = await supabase
+      .from('wallet_transfers')
+      .insert([{
         user_id: userId,
-        account_balance: newAccountBalance,
-        equity: newEquity, // This is the NOT NULL column from your error
-        today_pnl_percent: recordExists && currentMetric?.today_pnl_percent ? currentMetric.today_pnl_percent : 0,
-        open_positions: recordExists && currentMetric?.open_positions ? currentMetric.open_positions : 0,
-        win_rate: recordExists && currentMetric?.win_rate ? currentMetric.win_rate : 0,
-        total_open_pnl: recordExists && currentMetric?.total_open_pnl ? currentMetric.total_open_pnl : 0
-      };
+        transfer_type: 'wallet_to_trading',
+        amount: amount,
+        status: 'completed',
+        description: 'Transfer to Trading Account',
+        created_at: new Date().toISOString()
+      }]);
 
-      console.log('Upserting user_metrics:', upsertData);
-
-      // Update or insert user_metrics record
-      const { error: metricError } = await supabase
-        .from('user_metrics')
-        .upsert(upsertData, {
-          onConflict: 'user_id'
-        });
-
-      if (metricError) throw metricError;
-
-      // 3. Create a transaction record
-      const { error: transError } = await supabase
-        .from('transactions')
-        .insert([{
-          user_id: userId,
-          type: 'transfer_to_account',
-          amount: amount,
-          description: 'Transfer to Trading Account',
-          status: 'completed',
-          transaction_date: new Date().toISOString()
-        }]);
-
-      if (transError) throw transError;
-
-      // 4. Refresh data
-      await fetchWalletData();
-
-      // 5. Show success and reset
-      addToast(`Successfully transferred $${amount} to trading account!`, 'success');
-      setShowTransferToAccount(false);
-      setTransferToAccountAmount("");
-
-    } catch (e) {
-      console.error("Error transferring to trading account:", e);
-
-      // More specific error handling
-      if (e.code === '23502') {
-        addToast('Database error: Missing required fields. Please contact support.', 'error');
-      } else if (e.code === 'PGRST116') {
-        // No existing record - this is actually fine, we create new one
-        addToast('Transfer completed! New account created.', 'success');
-      } else {
-        addToast(`Transfer failed: ${e.message}`, 'error');
-      }
-    } finally {
-      setLoading(false);
+    if (transferError) {
+      console.warn('Could not create wallet_transfers record:', transferError);
+      // Don't throw, this is optional
     }
-  };
+
+    // 4. Create a transaction record
+    const { error: transError } = await supabase
+      .from('transactions')
+      .insert([{
+        user_id: userId,
+        type: 'transfer',
+        amount: amount,
+        description: 'Transfer to Trading Account',
+        status: 'completed',
+        transaction_date: new Date().toISOString()
+      }]);
+
+    if (transError) throw transError;
+
+    // 5. Refresh data
+    await fetchWalletData();
+
+    // 6. Show success and reset
+    addToast(`Successfully transferred $${amount} to trading account!`, 'success');
+    setShowTransferToAccount(false);
+    setTransferToAccountAmount("");
+
+  } catch (e) {
+    console.error("Error transferring to trading account:", e);
+
+    // More specific error handling
+    if (e.code === '23502') {
+      addToast('Database error: Missing required fields. Please contact support.', 'error');
+    } else if (e.code === 'PGRST116') {
+      // No existing record - this is actually fine, we create new one
+      addToast('Transfer completed! New account created.', 'success');
+    } else {
+      addToast(`Transfer failed: ${e.message}`, 'error');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Add this CopyButton component inside your WalletSection component file
   const CopyButton = ({ text, label, onCopy }) => {
@@ -203,7 +241,7 @@ const WalletSection = ({ supabase, userId }) => {
         ) : (
           <>
             <Copy className="w-3 h-3" />
-            <span>Copy {label}</span>
+            <span>Copy </span>
           </>
         )}
       </button>
@@ -322,7 +360,7 @@ const WalletSection = ({ supabase, userId }) => {
           completedTransfers: newWallet.completed_transfers || 0,
           declinedTransfers: newWallet.declined_transfers || 0,
         });
-        addToast('New wallet created for mock user.', 'info');
+        addToast('New wallet created for Trader.', 'info');
       } else if (fetchError) {
         throw fetchError;
       } else if (data) {
@@ -573,7 +611,7 @@ useEffect(() => {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="space-y-6 p-1 sm:p-3 lg:p-8 max-w-4xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Wallet</h1>
@@ -752,7 +790,7 @@ useEffect(() => {
         </TabsContent>
 
         {/* TRANSFER FUNDS TAB - UPDATED WITH US/EUROPE BANK OPTIONS */}
-        <TabsContent value="transfer" className="space-y-6">
+        <TabsContent value="transfer" className="space-y-1">
           <Card className="rounded-xl shadow-md overflow-hidden">
             <CardHeader>
               <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">
@@ -842,7 +880,7 @@ useEffect(() => {
                         disabled={paymentDetails.crypto.length === 0}
                       >
                         <Bitcoin className="w-4 h-4 mr-2" />
-                        Cryptocurrency
+                        Crypto
                       </Button>
                     </div>
                   </div>

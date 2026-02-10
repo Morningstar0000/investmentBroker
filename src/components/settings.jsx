@@ -22,7 +22,7 @@ export default function SettingsPage({
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRisk, setFilterRisk] = useState("all");
-  
+
   // Local state for unsaved changes (camelCase)
   const [localSettings, setLocalSettings] = useState({
     notifications: true,
@@ -95,15 +95,15 @@ export default function SettingsPage({
   // Save settings to parent/database
   const handleSaveSettings = async () => {
     if (!hasUnsavedChanges) return;
-    
+
     setIsSaving(true);
     setSaveMessage("");
-    
+
     try {
       if (onSettingsUpdate) {
         await onSettingsUpdate(localSettings);
         setSaveMessage("Settings saved successfully!");
-        
+
         // Clear message after 3 seconds
         setTimeout(() => {
           setSaveMessage("");
@@ -118,42 +118,42 @@ export default function SettingsPage({
 
   const handlePasswordUpdate = async (e) => {
     e.preventDefault()
-    
+
     if (!newPassword || !confirmPassword) {
       setPasswordError("Both fields are required")
       return
     }
-    
+
     if (newPassword !== confirmPassword) {
       setPasswordError("Passwords do not match")
       return
     }
-    
+
     if (newPassword.length < 6) {
       setPasswordError("Password must be at least 6 characters")
       return
     }
-    
+
     try {
       setPasswordLoading(true)
       setPasswordError("")
       setPasswordSuccess("")
-      
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
-      
+
       if (error) throw error
-      
+
       addToast("Password updated successfully!", "success")
-      
+
       setNewPassword("")
       setConfirmPassword("")
-      
+
       setTimeout(() => {
         setPasswordSuccess("")
       }, 5000)
-      
+
     } catch (err) {
       setPasswordError(`Error: ${err.message}`)
     } finally {
@@ -301,7 +301,7 @@ export default function SettingsPage({
                             </div>
                           )}
                         </div>
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 truncate">
@@ -314,15 +314,15 @@ export default function SettingsPage({
                               </span>
                             </div>
                           </div>
-                          
+
                           <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
                             @{investor.username}
                           </p>
-                          
+
                           <p className="text-gray-700 dark:text-gray-300 text-sm mb-3 line-clamp-2">
                             {investor.description}
                           </p>
-                          
+
                           <div className="flex flex-wrap gap-2 mb-4">
                             <Badge className={`${getRiskColor(investor.risk_level)} px-3 py-1`}>
                               {investor.risk_level.charAt(0).toUpperCase() + investor.risk_level.slice(1)} Risk
@@ -334,7 +334,7 @@ export default function SettingsPage({
                               {investor.experience}
                             </Badge>
                           </div>
-                          
+
                           {/* Trading Stats Grid - Similar to screenshot */}
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <div className="text-center">
@@ -365,82 +365,103 @@ export default function SettingsPage({
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Right Column: Performance Stats and Action Button */}
-                    <div className="lg:w-80 flex flex-col gap-4">
-                      {/* Performance Stats - Column Layout */}
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                        <div className="space-y-4">
-                          <div>
-                            <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                              +{investor.total_return}%
+                    <div className="lg:w-80">
+                      {/* Grid container for 2 rows */}
+                      <div className="flex flex-col gap-4 h-full">
+
+                        {/* Row 1: Performance Stats Grid */}
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                          <div className="grid grid-cols-2 gap-4 h-full">
+                            {/* Top Left: Total Return */}
+                            <div className="flex flex-col justify-center items-center text-center">
+                              <div className="text-2xl lg:text-3xl font-bold text-green-600 dark:text-green-400">
+                                +{investor.total_return}%
+                              </div>
+                              <div className="text-xs lg:text-sm text-gray-500 mt-1">Total Return</div>
                             </div>
-                            <div className="text-sm text-gray-500">Total Return</div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                              +{investor.monthly_return}%
+
+                            {/* Top Right: This Month */}
+                            <div className="flex flex-col justify-center items-center text-center">
+                              <div className="text-xl lg:text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                +{investor.monthly_return}%
+                              </div>
+                              <div className="text-xs lg:text-sm text-gray-500 mt-1">This Month</div>
                             </div>
-                            <div className="text-sm text-gray-500">This Month</div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
-                              {investor.win_rate}%
+
+                            {/* Bottom Left: Win Rate */}
+                            <div className="flex flex-col justify-center items-center text-center">
+                              <div className="text-xl lg:text-2xl font-bold text-purple-600 dark:text-purple-400">
+                                {investor.win_rate}%
+                              </div>
+                              <div className="text-xs lg:text-sm text-gray-500 mt-1">Win Rate</div>
                             </div>
-                            <div className="text-sm text-gray-500">Win Rate</div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-xl font-bold text-gray-700 dark:text-gray-300">
-                              {investor.followers.toLocaleString()}
+
+                            {/* Bottom Right: Followers */}
+                            <div className="flex flex-col justify-center items-center text-center">
+                              <div className="text-xl lg:text-2xl font-bold text-gray-700 dark:text-gray-300">
+                                {investor.followers.toLocaleString()}
+                              </div>
+                              <div className="text-xs lg:text-sm text-gray-500 mt-1">Followers</div>
                             </div>
-                            <div className="text-sm text-gray-500">Followers</div>
                           </div>
                         </div>
-                      </div>
-                      
-                      {/* Action Button */}
-                      <div className="flex-shrink-0">
-                        <Button
-                          onClick={() => handleInvestorSelect(investor)}
-                          disabled={
-                            selectedInvestor !== null &&
-                            selectedInvestor.id !== investor.id
-                          }
-                          className={`w-full ${selectedInvestor?.id === investor.id 
-                            ? 'bg-green-500 hover:bg-green-600' 
-                            : selectedInvestor !== null 
-                              ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed' 
-                              : 'bg-blue-500 hover:bg-blue-600'
-                          } text-white transition-colors duration-200`}
-                        >
-                          {selectedInvestor?.id === investor.id ? (
-                            <>
-                              <Check className="w-4 h-4 mr-2" />
-                              Currently Copying
-                            </>
-                          ) : selectedInvestor !== null ? (
-                            <>
-                              <span className="text-sm">Already Copying Another Investor</span>
-                            </>
-                          ) : (
-                            <>
-                              Copy This Investor
-                            </>
+
+                        {/* Row 2: Action Button Area - Normal size */}
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            onClick={() => handleInvestorSelect(investor)}
+                            disabled={
+                              selectedInvestor !== null &&
+                              selectedInvestor.id !== investor.id
+                            }
+                            className={`w-full py-3 ${selectedInvestor?.id === investor.id
+                              ? 'bg-green-500 hover:bg-green-600'
+                              : selectedInvestor !== null
+                                ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                                : 'bg-blue-500 hover:bg-blue-600'
+                              } text-white transition-colors duration-200`}
+                          >
+                            {selectedInvestor?.id === investor.id ? (
+                              <div className="flex items-center justify-center">
+                                <Check className="w-4 h-4 mr-2" />
+                                <span className="font-medium">Currently Copying</span>
+                              </div>
+                            ) : selectedInvestor !== null ? (
+                              <div className="flex items-center justify-center">
+                                <span className="text-sm font-medium">Already Copying Another Investor</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center">
+                                <span className="font-medium">Copy This Investor</span>
+                              </div>
+                            )}
+                          </Button>
+
+                          {/* Additional info for currently copying */}
+                          {selectedInvestor?.id === investor.id && (
+                            <div className="text-center">
+                              <button
+                                onClick={() => handleInvestorSelect(investor)}
+                                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 underline"
+                              >
+                                Click to stop
+                              </button>
+                            </div>
                           )}
-                        </Button>
-                        
-                        {/* Follow Status */}
-                        {followedInvestors?.some(fi => fi.investor_id === investor.id) && (
-                          <div className="mt-2 text-center">
-                            <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                              <Check className="w-3 h-3 mr-1" />
-                              Following
-                            </Badge>
-                          </div>
-                        )}
+
+                          {/* Follow Status */}
+                          {followedInvestors?.some(fi => fi.investor_id === investor.id) && (
+                            <div className="text-center">
+                              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800">
+                                <Check className="w-3 h-3 mr-1" />
+                                Following
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
                       </div>
                     </div>
                   </div>
@@ -490,7 +511,7 @@ export default function SettingsPage({
                 <Input
                   type="number"
                   value={localSettings.maxCopyAmount}
-                  onChange={(e) => 
+                  onChange={(e) =>
                     handleLocalChange("maxCopyAmount", Number.parseInt(e.target.value) || 0)
                   }
                   placeholder="1000"

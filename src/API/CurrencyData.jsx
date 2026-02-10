@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { alphaVantageService } from './alphaVantage';
 import { supabaseCurrencyService } from './supabaseCurrency';
 
 export const CurrencyData = (refreshInterval = 300000) => {

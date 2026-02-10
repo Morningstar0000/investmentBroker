@@ -1078,7 +1078,7 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
             account_balance: newBalance,
             total_open_pnl: newTotalOpenPnl,
             equity: newEquity,
-            updated_at: new Date().toISOString(),
+            // updated_at: new Date().toISOString(),
           },
           {
             onConflict: "user_id",
@@ -1147,160 +1147,187 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
     }
   };
 
-  const fetchTradingData = async () => {
-    if (!user?.id) return;
+ const fetchTradingData = async () => {
+  if (!user?.id) return;
 
-    try {
-      // Fetch open positions
-      const { data: openPositions } = await supabase
-        .from("open_positions")
-        .select("*")
-        .eq("user_id", user.id);
+  try {
+    console.log("🔄 Starting fetchTradingData...");
 
-      // Fetch closed positions
-      const { data: closedPositions } = await supabase
-        .from("closed_positions")
-        .select("*")
-        .eq("user_id", user.id);
-
-      // Fetch user metrics for Dashboard
-      const { data: userMetrics } = await supabase
-        .from("user_metrics")
-        .select("*")
+    // Fetch all data in parallel
+    const [
+      openPositionsRes,
+      closedPositionsRes,
+      userMetricsRes,
+      walletTransfersRes
+    ] = await Promise.all([
+      supabase.from("open_positions").select("*").eq("user_id", user.id),
+      supabase.from("closed_positions").select("*").eq("user_id", user.id),
+      supabase.from("user_metrics").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("wallet_transfers").select("amount, transfer_type, status")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("status", "completed")
+    ]);
 
-      // Calculate metrics
-      const openPosList = openPositions || [];
-      const closedPosList = closedPositions || [];
+    const openPositions = openPositionsRes.data || [];
+    const closedPositions = closedPositionsRes.data || [];
+    const userMetrics = userMetricsRes.data || null;
+    const walletTransfers = walletTransfersRes.data || [];
 
-      const totalOpenPnl = openPosList.reduce(
-        (sum, pos) => sum + (pos.pnl || 0),
-        0
-      );
+    console.log("📊 Data fetched:", {
+      openPositions: openPositions.length,
+      closedPositions: closedPositions.length,
+      walletTransfers: walletTransfers.length
+    });
 
-      // CRITICAL FIX: Account Balance should be calculated from closed positions
-      const accountBalance = closedPosList.reduce(
-        (sum, pos) => sum + (pos.pnl || 0),
-        0
-      );
+    // 1. Calculate starting balance from wallet transfers
+    const totalDeposits = walletTransfers
+      .filter(t => t.transfer_type === "wallet_to_trading" || t.transfer_type === "deposit")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-      // CRITICAL FIX: Equity = Account Balance + Total Open P&L
-      const equity = accountBalance + totalOpenPnl;
+    const totalWithdrawals = walletTransfers
+      .filter(t => t.transfer_type === "trading_to_wallet" || t.transfer_type === "withdrawal")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-      console.log("🔄 fetchTradingData - Recalculated metrics:", {
-        openPositions: openPosList.length,
-        closedPositions: closedPosList.length,
-        totalOpenPnl,
-        accountBalance,
-        equity,
-        userMetricsFromDB: userMetrics
+    const startingBalance = totalDeposits - totalWithdrawals;
+
+    console.log("💰 Starting balance calculation:", {
+      totalDeposits,
+      totalWithdrawals,
+      startingBalance
+    });
+
+    // 2. Calculate total closed P&L
+    const totalClosedPnl = closedPositions.reduce(
+      (sum, pos) => sum + (parseFloat(pos.pnl) || 0),
+      0
+    );
+
+    console.log("📈 Closed positions P&L:", totalClosedPnl);
+
+    // 3. Calculate total open P&L
+    const totalOpenPnl = openPositions.reduce(
+      (sum, pos) => sum + (parseFloat(pos.pnl) || 0),
+      0
+    );
+
+    // 4. CORRECT FORMULA: Account Balance = Starting Balance + Total Closed P&L
+    const accountBalance = startingBalance + totalClosedPnl;
+    
+    // 5. CORRECT FORMULA: Equity = Account Balance + Total Open P&L
+    const equity = accountBalance + totalOpenPnl;
+
+    console.log("🎯 FINAL Calculations:", {
+      startingBalance,
+      totalClosedPnl,
+      totalOpenPnl,
+      accountBalance,
+      equity,
+      formula: `$${startingBalance} + $${totalClosedPnl} = $${accountBalance}`,
+      formulaEquity: `$${accountBalance} + $${totalOpenPnl} = $${equity}`
+    });
+
+    // Update local state
+    setMetricsData(prev => ({
+      ...prev,
+      totalBalance: accountBalance,
+      totalOpenPnl: totalOpenPnl,
+      equity: equity,
+      openPositions: openPositions.length,
+      todayPnLPercent: userMetrics?.today_pnl_percent || prev.todayPnLPercent || 0,
+      winRate: userMetrics?.win_rate || prev.winRate || 0
+    }));
+
+    // Update positions state
+    setOpenPositionsData(openPositions);
+    setClosedPositionsData(closedPositions);
+
+    // Calculate today's P&L
+    const today = new Date().toISOString().split("T")[0];
+    const todayPnl = closedPositions
+      .filter((pos) => pos.close_time && pos.close_time.startsWith(today))
+      .reduce((sum, pos) => sum + (parseFloat(pos.pnl) || 0), 0);
+
+    // Calculate commissions
+    const openCommission = openPositions.reduce(
+      (sum, pos) => sum + (parseFloat(pos.commission) || 0),
+      0
+    );
+    const closedCommission = closedPositions.reduce(
+      (sum, pos) => sum + (parseFloat(pos.commission) || 0),
+      0
+    );
+    const totalCommission = openCommission + closedCommission;
+
+    // Update trading summary state
+    setTradingSummaryData({
+      total_open_pnl: totalOpenPnl,
+      total_closed_pnl: totalClosedPnl, // Note: This is JUST the P&L, not including starting balance
+      today_pnl: todayPnl,
+      total_commission: totalCommission,
+      total_positions: openPositions.length + closedPositions.length,
+      total_open_positions: openPositions.length,
+    });
+
+    // Update user_metrics in database (use upsert for consistency)
+    const userMetricsData = {
+      user_id: user.id,
+      account_balance: accountBalance,
+      total_open_pnl: totalOpenPnl,
+      equity: equity,
+      starting_balance: startingBalance,
+      open_positions: openPositions.length,
+      today_pnl_percent: userMetrics?.today_pnl_percent || 0,
+      win_rate: userMetrics?.win_rate || 0,
+      // updated_at: new Date().toISOString()
+    };
+
+    const { error: metricsError } = await supabase
+      .from("user_metrics")
+      .upsert(userMetricsData, {
+        onConflict: 'user_id'
       });
 
-      // CRITICAL: Update metricsData state - this is what the Dashboard displays
-      setMetricsData(prev => ({
-        ...prev,
-        totalBalance: accountBalance,
-        totalOpenPnl: totalOpenPnl,
-        equity: equity,
-        openPositions: openPosList.length,
-        // Keep other metrics from database if available
-        todayPnLPercent: userMetrics?.today_pnl_percent || prev.todayPnLPercent || 0,
-        winRate: userMetrics?.win_rate || prev.winRate || 0
-      }));
-
-      // Update positions state
-      setOpenPositionsData(openPosList);
-      setClosedPositionsData(closedPosList);
-
-      // Calculate today's P&L
-      const today = new Date().toISOString().split("T")[0];
-      const todayPnl = closedPosList
-        .filter((pos) => pos.close_time && pos.close_time.startsWith(today))
-        .reduce((sum, pos) => sum + (pos.pnl || 0), 0);
-
-      const openCommission = openPosList.reduce(
-        (sum, pos) => sum + (pos.commission || 0),
-        0
-      );
-      const closedCommission = closedPosList.reduce(
-        (sum, pos) => sum + (pos.commission || 0),
-        0
-      );
-      const totalCommission = openCommission + closedCommission;
-
-      // Update trading summary state
-      setTradingSummaryData({
-        total_open_pnl: totalOpenPnl,
-        total_closed_pnl: accountBalance, // Use accountBalance, not totalClosedPnl
-        today_pnl: todayPnl,
-        total_commission: totalCommission,
-        total_positions: openPosList.length + closedPosList.length,
-        total_open_positions: openPosList.length,
-      });
-
-      // Also ensure user_metrics is updated in database
-      if (userMetrics) {
-        // Update existing user_metrics
-        await supabase
-          .from("user_metrics")
-          .update({
-            account_balance: accountBalance,
-            total_open_pnl: totalOpenPnl,
-            equity: equity,
-            open_positions: openPosList.length,
-            updated_at: new Date().toISOString()
-          })
-          .eq("user_id", user.id);
-      } else {
-        // Create new user_metrics if doesn't exist
-        await supabase
-          .from("user_metrics")
-          .insert({
-            user_id: user.id,
-            account_balance: accountBalance,
-            total_open_pnl: totalOpenPnl,
-            equity: equity,
-            open_positions: openPosList.length,
-            today_pnl_percent: 0,
-            win_rate: 0
-          });
-      }
-
-      // Update trading_summary table (optional, but keeps it consistent)
-      const { data: existingSummary } = await supabase
-        .from("trading_summary")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (existingSummary) {
-        await supabase
-          .from("trading_summary")
-          .update({
-            total_open_pnl: totalOpenPnl,
-            total_closed_pnl: accountBalance,
-            total_commission: totalCommission,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("user_id", user.id);
-      } else {
-        await supabase.from("trading_summary").insert({
-          user_id: user.id,
-          total_open_pnl: totalOpenPnl,
-          total_closed_pnl: accountBalance,
-          total_commission: totalCommission,
-          today_pnl: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      }
-
-    } catch (error) {
-      console.error("Error fetching trading data:", error);
-      setDataError("Failed to load trading data");
+    if (metricsError) {
+      console.error("❌ Error updating user_metrics:", metricsError);
+    } else {
+      console.log("✅ user_metrics updated successfully");
     }
-  };
+
+    // Update trading_summary table
+    const { data: existingSummary } = await supabase
+      .from("trading_summary")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const tradingSummaryData = {
+      user_id: user.id,
+      total_open_pnl: totalOpenPnl,
+      total_closed_pnl: totalClosedPnl,
+      today_pnl: todayPnl,
+      total_commission: totalCommission,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingSummary) {
+      await supabase
+        .from("trading_summary")
+        .update(tradingSummaryData)
+        .eq("user_id", user.id);
+    } else {
+      await supabase.from("trading_summary").insert({
+        ...tradingSummaryData,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    console.log("✅ fetchTradingData completed successfully");
+
+  } catch (error) {
+    console.error("❌ Error in fetchTradingData:", error);
+    setDataError("Failed to load trading data");
+  }
+};
 
   // Remove the mockInvestors array and replace with state for investors
   const [followedInvestors, setFollowedInvestors] = useState([]);
