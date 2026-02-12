@@ -10,8 +10,16 @@ import { Wallet, Plus, TrendingUp, TrendingDown, DollarSign, Banknote, Bitcoin, 
 import { useToast } from '../context/ToastContext';
 
 
-const WalletSection = ({ supabase, userId }) => {
+const WalletSection = ({ supabase, userId, refreshTrigger }) => {
   const { addToast } = useToast();
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log("🔄 Refreshing wallet data due to transfer");
+      fetchWalletData();
+      fetchTransactions();
+    }
+  }, [refreshTrigger]);
 
   const [transferAmount, setTransferAmount] = useState("");
   const [transferType, setTransferType] = useState("deposit");
@@ -53,153 +61,154 @@ const WalletSection = ({ supabase, userId }) => {
   const [showTransferToAccount, setShowTransferToAccount] = useState(false);
   const [transferToAccountAmount, setTransferToAccountAmount] = useState("");
 
+
   const handleTransferToTradingAccount = async () => {
-  const amount = parseFloat(transferToAccountAmount);
+    const amount = parseFloat(transferToAccountAmount);
 
-  if (isNaN(amount) || amount <= 0) {
-    addToast('Please enter a valid amount.', 'error');
-    return;
-  }
-
-  if (amount > walletData.availableBalance) {
-    addToast('Insufficient wallet balance.', 'error');
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    // 1. Update wallet table - decrease available balance
-    const newWalletBalance = walletData.availableBalance - amount;
-    const { error: walletError } = await supabase
-      .from('wallets')
-      .update({
-        available_balance: newWalletBalance
-      })
-      .eq('user_id', userId);
-
-    if (walletError) throw walletError;
-
-    // 2. Get current user_metrics
-    const { data: currentMetric, error: fetchError } = await supabase
-      .from('user_metrics')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    // Check if record exists
-    const recordExists = !fetchError || (fetchError && fetchError.code !== 'PGRST116');
-
-    // 🔴🔴🔴 CRITICAL FIX: Calculate starting_balance 🔴🔴🔴
-    let startingBalance = 0;
-    let currentBalance = 0;
-    let currentEquity = 0;
-    let currentEquityNumeric = 0;
-    let currentTotalOpenPnl = 0;
-
-    if (recordExists && currentMetric) {
-      // Use existing values
-      startingBalance = currentMetric.starting_balance || 0;
-      currentBalance = currentMetric.account_balance || 0;
-      currentEquity = currentMetric.equity || 0;
-      currentEquityNumeric = currentMetric.equity_numeric || 0;
-      currentTotalOpenPnl = currentMetric.total_open_pnl || 0;
+    if (isNaN(amount) || amount <= 0) {
+      addToast('Please enter a valid amount.', 'error');
+      return;
     }
 
-    // 🔴🔴🔴 KEY FIX: When transferring to trading account, 
-    // you're ADDING to the starting balance, not just account balance
-    // The starting balance represents ALL wallet transfers to trading
-    const newStartingBalance = startingBalance + amount;
-    const newAccountBalance = currentBalance + amount;
-    const newEquity = currentEquity + amount;
-    const newEquityNumeric = currentEquityNumeric + amount;
+    if (amount > walletData.availableBalance) {
+      addToast('Insufficient wallet balance.', 'error');
+      return;
+    }
 
-    // Prepare the data
-    const upsertData = {
-      user_id: userId,
-      starting_balance: newStartingBalance, // 🔴 THIS IS CRITICAL
-      account_balance: newAccountBalance,
-      equity: newEquity,
-     
-      today_pnl_percent: recordExists && currentMetric?.today_pnl_percent ? currentMetric.today_pnl_percent : 0,
-      open_positions: recordExists && currentMetric?.open_positions ? currentMetric.open_positions : 0,
-      win_rate: recordExists && currentMetric?.win_rate ? currentMetric.win_rate : 0,
-      total_open_pnl: currentTotalOpenPnl,
-      
-    };
+    setLoading(true);
 
-    console.log('💰 Transferring to trading account:', {
-      amount,
-      oldStartingBalance: startingBalance,
-      newStartingBalance,
-      oldAccountBalance: currentBalance,
-      newAccountBalance
-    });
+    try {
+      // 1. Update wallet table - decrease available balance
+      const newWalletBalance = walletData.availableBalance - amount;
+      const { error: walletError } = await supabase
+        .from('wallets')
+        .update({
+          available_balance: newWalletBalance
+        })
+        .eq('user_id', userId);
 
-    // Update or insert user_metrics record
-    const { error: metricError } = await supabase
-      .from('user_metrics')
-      .upsert(upsertData, {
-        onConflict: 'user_id'
+      if (walletError) throw walletError;
+
+      // 2. Get current user_metrics
+      const { data: currentMetric, error: fetchError } = await supabase
+        .from('user_metrics')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      // Check if record exists
+      const recordExists = !fetchError || (fetchError && fetchError.code !== 'PGRST116');
+
+      // 🔴🔴🔴 CRITICAL FIX: Calculate starting_balance 🔴🔴🔴
+      let startingBalance = 0;
+      let currentBalance = 0;
+      let currentEquity = 0;
+      let currentEquityNumeric = 0;
+      let currentTotalOpenPnl = 0;
+
+      if (recordExists && currentMetric) {
+        // Use existing values
+        startingBalance = currentMetric.starting_balance || 0;
+        currentBalance = currentMetric.account_balance || 0;
+        currentEquity = currentMetric.equity || 0;
+        currentEquityNumeric = currentMetric.equity_numeric || 0;
+        currentTotalOpenPnl = currentMetric.total_open_pnl || 0;
+      }
+
+      // 🔴🔴🔴 KEY FIX: When transferring to trading account, 
+      // you're ADDING to the starting balance, not just account balance
+      // The starting balance represents ALL wallet transfers to trading
+      const newStartingBalance = startingBalance + amount;
+      const newAccountBalance = currentBalance + amount;
+      const newEquity = currentEquity + amount;
+      const newEquityNumeric = currentEquityNumeric + amount;
+
+      // Prepare the data
+      const upsertData = {
+        user_id: userId,
+        starting_balance: newStartingBalance, // 🔴 THIS IS CRITICAL
+        account_balance: newAccountBalance,
+        equity: newEquity,
+
+        today_pnl_percent: recordExists && currentMetric?.today_pnl_percent ? currentMetric.today_pnl_percent : 0,
+        open_positions: recordExists && currentMetric?.open_positions ? currentMetric.open_positions : 0,
+        win_rate: recordExists && currentMetric?.win_rate ? currentMetric.win_rate : 0,
+        total_open_pnl: currentTotalOpenPnl,
+
+      };
+
+      console.log('💰 Transferring to trading account:', {
+        amount,
+        oldStartingBalance: startingBalance,
+        newStartingBalance,
+        oldAccountBalance: currentBalance,
+        newAccountBalance
       });
 
-    if (metricError) throw metricError;
+      // Update or insert user_metrics record
+      const { error: metricError } = await supabase
+        .from('user_metrics')
+        .upsert(upsertData, {
+          onConflict: 'user_id'
+        });
 
-    // 3. Also create a wallet_transfers record for tracking
-    const { error: transferError } = await supabase
-      .from('wallet_transfers')
-      .insert([{
-        user_id: userId,
-        transfer_type: 'wallet_to_trading',
-        amount: amount,
-        status: 'completed',
-        description: 'Transfer to Trading Account',
-        created_at: new Date().toISOString()
-      }]);
+      if (metricError) throw metricError;
 
-    if (transferError) {
-      console.warn('Could not create wallet_transfers record:', transferError);
-      // Don't throw, this is optional
+      // 3. Also create a wallet_transfers record for tracking
+      const { error: transferError } = await supabase
+        .from('wallet_transfers')
+        .insert([{
+          user_id: userId,
+          transfer_type: 'wallet_to_trading',
+          amount: amount,
+          status: 'completed',
+          description: 'Transfer to Trading Account',
+          created_at: new Date().toISOString()
+        }]);
+
+      if (transferError) {
+        console.warn('Could not create wallet_transfers record:', transferError);
+        // Don't throw, this is optional
+      }
+
+      // 4. Create a transaction record
+      const { error: transError } = await supabase
+        .from('transactions')
+        .insert([{
+          user_id: userId,
+          type: 'deposit',
+          amount: amount,
+          description: 'Transfer to trading Account',
+          status: 'completed',
+          transaction_date: new Date().toISOString()
+        }]);
+
+      if (transError) throw transError;
+
+      // 5. Refresh data
+      await fetchWalletData();
+
+      // 6. Show success and reset
+      addToast(`Successfully transferred $${amount} to trading account!`, 'success');
+      setShowTransferToAccount(false);
+      setTransferToAccountAmount("");
+
+    } catch (e) {
+      console.error("Error transferring to trading account:", e);
+
+      // More specific error handling
+      if (e.code === '23502') {
+        addToast('Database error: Missing required fields. Please contact support.', 'error');
+      } else if (e.code === 'PGRST116') {
+        // No existing record - this is actually fine, we create new one
+        addToast('Transfer completed! New account created.', 'success');
+      } else {
+        addToast(`Transfer failed: ${e.message}`, 'error');
+      }
+    } finally {
+      setLoading(false);
     }
-
-    // 4. Create a transaction record
-    const { error: transError } = await supabase
-      .from('transactions')
-      .insert([{
-        user_id: userId,
-        type: 'transfer',
-        amount: amount,
-        description: 'Transfer to Trading Account',
-        status: 'completed',
-        transaction_date: new Date().toISOString()
-      }]);
-
-    if (transError) throw transError;
-
-    // 5. Refresh data
-    await fetchWalletData();
-
-    // 6. Show success and reset
-    addToast(`Successfully transferred $${amount} to trading account!`, 'success');
-    setShowTransferToAccount(false);
-    setTransferToAccountAmount("");
-
-  } catch (e) {
-    console.error("Error transferring to trading account:", e);
-
-    // More specific error handling
-    if (e.code === '23502') {
-      addToast('Database error: Missing required fields. Please contact support.', 'error');
-    } else if (e.code === 'PGRST116') {
-      // No existing record - this is actually fine, we create new one
-      addToast('Transfer completed! New account created.', 'success');
-    } else {
-      addToast(`Transfer failed: ${e.message}`, 'error');
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Add this CopyButton component inside your WalletSection component file
   const CopyButton = ({ text, label, onCopy }) => {
@@ -377,89 +386,89 @@ const WalletSection = ({ supabase, userId }) => {
     }
   };
 
- // --- Supabase Data Fetching and Realtime Listener ---
-useEffect(() => {
-  if (!supabase || !userId) {
-    console.error("Supabase client or user ID not provided.");
-    setLoading(false);
-    return;
-  }
+  // --- Supabase Data Fetching and Realtime Listener ---
+  useEffect(() => {
+    if (!supabase || !userId) {
+      console.error("Supabase client or user ID not provided.");
+      setLoading(false);
+      return;
+    }
 
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  // Initial fetch
-  fetchPaymentDetails();
-  fetchWalletData();
-  fetchTransactions();
+    // Initial fetch
+    fetchPaymentDetails();
+    fetchWalletData();
+    fetchTransactions();
 
-  // Realtime listeners
-  const walletSubscription = supabase
-    .channel('wallets_changes')
-    .on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: 'wallets', 
-      filter: `user_id=eq.${userId}` 
-    }, payload => {
-      if (payload.new) {
-        setWalletData({
-          availableBalance: payload.new.available_balance,
-          pendingTransfers: payload.new.pending_transfers,
-          completedTransfers: payload.new.completed_transfers || 0,
-          declinedTransfers: payload.new.declined_transfers || 0,
-        });
-      }
-    })
-    .subscribe();
+    // Realtime listeners
+    const walletSubscription = supabase
+      .channel('wallets_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'wallets',
+        filter: `user_id=eq.${userId}`
+      }, payload => {
+        if (payload.new) {
+          setWalletData({
+            availableBalance: payload.new.available_balance,
+            pendingTransfers: payload.new.pending_transfers,
+            completedTransfers: payload.new.completed_transfers || 0,
+            declinedTransfers: payload.new.declined_transfers || 0,
+          });
+        }
+      })
+      .subscribe();
 
-  const transactionsSubscription = supabase
-    .channel('transactions_changes')
-    .on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: 'transactions', 
-      filter: `user_id=eq.${userId}` 
-    }, payload => {
-      console.log('Real-time transaction update:', payload);
-      fetchTransactions();
-    })
-    .subscribe();
+    const transactionsSubscription = supabase
+      .channel('transactions_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'transactions',
+        filter: `user_id=eq.${userId}`
+      }, payload => {
+        console.log('Real-time transaction update:', payload);
+        fetchTransactions();
+      })
+      .subscribe();
 
-  const paymentDetailsSubscription = supabase
-    .channel('payment_details_changes')
-    .on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: 'payment_details' 
-    }, payload => {
-      fetchPaymentDetails();
-    })
-    .subscribe();
+    const paymentDetailsSubscription = supabase
+      .channel('payment_details_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'payment_details'
+      }, payload => {
+        fetchPaymentDetails();
+      })
+      .subscribe();
 
-  const userMetricsSubscription = supabase
-    .channel('user_metrics_changes')
-    .on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: 'user_metrics', 
-      filter: `user_id=eq.${userId}` 
-    }, payload => {
-      console.log('User metrics updated:', payload);
-      // You might want to refresh something here if needed
-      // The dashboard should automatically update via its own metricsData prop
-    })
-    .subscribe();
+    const userMetricsSubscription = supabase
+      .channel('user_metrics_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_metrics',
+        filter: `user_id=eq.${userId}`
+      }, payload => {
+        console.log('User metrics updated:', payload);
+        // You might want to refresh something here if needed
+        // The dashboard should automatically update via its own metricsData prop
+      })
+      .subscribe();
 
-  // SINGLE cleanup function at the end
-  return () => {
-    console.log('Cleaning up Supabase subscriptions');
-    if (walletSubscription) supabase.removeChannel(walletSubscription);
-    if (transactionsSubscription) supabase.removeChannel(transactionsSubscription);
-    if (paymentDetailsSubscription) supabase.removeChannel(paymentDetailsSubscription);
-    if (userMetricsSubscription) supabase.removeChannel(userMetricsSubscription);
-  };
-}, [supabase, userId]);
+    // SINGLE cleanup function at the end
+    return () => {
+      console.log('Cleaning up Supabase subscriptions');
+      if (walletSubscription) supabase.removeChannel(walletSubscription);
+      if (transactionsSubscription) supabase.removeChannel(transactionsSubscription);
+      if (paymentDetailsSubscription) supabase.removeChannel(paymentDetailsSubscription);
+      if (userMetricsSubscription) supabase.removeChannel(userMetricsSubscription);
+    };
+  }, [supabase, userId]);
 
   // Helper function to get crypto details
   const getCryptoDetails = (currency) => {
@@ -743,17 +752,21 @@ useEffect(() => {
                     <div key={transaction.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 hover:shadow-sm transition-shadow">
                       <div className="flex items-center space-x-3">
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${transaction.type === "deposit" ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${transaction.type === "deposit" || transaction.type === "transfer"
+                              ? "bg-green-100 dark:bg-green-900/30"
+                              : "bg-red-100 dark:bg-red-900/30"
                             }`}
                         >
-                          {transaction.type === "deposit" ? (
+                          {transaction.type === "deposit" || transaction.type === "transfer" ? (
                             <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
                           ) : (
                             <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-800 dark:text-gray-200 capitalize">{transaction.type}</p>
+                          <p className="font-medium text-gray-800 dark:text-gray-200 capitalize">
+                            {transaction.type === "transfer" ? "Transfer to Wallet" : transaction.type}
+                          </p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">{transaction.description}</p>
                           <p className="text-xs text-gray-400 dark:text-gray-500">
                             {new Date(transaction.transaction_date).toLocaleDateString()} at{' '}
@@ -764,10 +777,13 @@ useEffect(() => {
                       <div className="flex items-center space-x-3">
                         <div className="text-right">
                           <p
-                            className={`font-semibold text-lg ${transaction.type === "deposit" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                            className={`font-semibold text-lg ${transaction.type === "deposit" || transaction.type === "transfer"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                               }`}
                           >
-                            {transaction.type === "deposit" ? "+" : "-"}${transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {transaction.type === "deposit" || transaction.type === "transfer" ? "+" : "-"}
+                            ${transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                           <Badge
                             variant={

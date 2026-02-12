@@ -522,7 +522,7 @@ export default function TradingSection({
         title="Confirm Close Position"
       >
         {positionToClose && (
-          <div className="py-4">
+          <div className="p-4">
             <p className="text-sm text-gray-700 dark:text-gray-300">
               Are you sure you want to close the position on{" "}
               <span className="font-semibold">{positionToClose.pair}</span>?
@@ -535,7 +535,7 @@ export default function TradingSection({
             </p>
           </div>
         )}
-        <div className="flex justify-end space-x-2 mt-4">
+        <div className="flex justify-end space-x-2 m-4">
           <Button
             variant="outline"
             onClick={handleCancelClose}

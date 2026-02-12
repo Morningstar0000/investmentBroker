@@ -9,7 +9,7 @@ import {
 } from "./ui/Card";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
-// Add WifiOff to your imports
+import Input from "./ui/Input";
 import {
   DollarSign,
   TrendingUp,
@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { CurrencyData } from "../API/CurrencyData";
 import { NotificationBell } from "./NotificatioBell";
+import { ArrowLeft, ArrowRight } from "./ui/Icons";
+import { supabase } from "../client"; // IMPORT SUPABASE DIRECTLY
 
 export default function Dashboard({
   userId,
@@ -32,11 +34,31 @@ export default function Dashboard({
   unreadCount,
   onOpenChat,
   profileData,
+  user,
+  addToast,
+  updateUserMetrics,
+  fetchTradingData
 }) {
   const { majorPairs, loading, error, refreshData } = CurrencyData();
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [transferToWalletAmount, setTransferToWalletAmount] = useState("");
+  const [isTransferringToWallet, setIsTransferringToWallet] = useState(false);
+  const [showWithdrawToWallet, setShowWithdrawToWallet] = useState(false);
 
-  // Add at the top of your Dashboard component, after the state declarations:
+  // DEBUG: Check props on every render
+  useEffect(() => {
+    console.log("🔍 Dashboard PROPS RECEIVED:", {
+      user: user ? { id: user.id, email: user.email } : null,
+      hasUser: !!user,
+      userId: user?.id,
+      hasAddToast: typeof addToast === 'function',
+      hasUpdateUserMetrics: typeof updateUserMetrics === 'function',
+      hasFetchTradingData: typeof fetchTradingData === 'function',
+      hasMetricsData: !!metricsData,
+      metricsBalance: metricsData?.totalBalance
+    });
+  }, [user, addToast, updateUserMetrics, fetchTradingData, metricsData]);
+
   useEffect(() => {
     console.log("📊 Dashboard received metricsData:", metricsData);
     console.log("📈 Current Equity Calculation:", {
@@ -64,13 +86,173 @@ export default function Dashboard({
     return date.toLocaleDateString("en-US", options);
   };
 
-  // Add this function to get time-based greeting
   const getTimeBasedGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
     if (hour < 18) return "Good afternoon";
     return "Good evening";
   };
+
+  const handleTransferToWallet = async () => {
+    if (!user) {
+      if (typeof addToast === 'function') {
+        addToast("Please sign in to make transfers", 'error', 4000);
+      }
+      return;
+    }
+
+    const amount = parseFloat(transferToWalletAmount);
+
+    if (!amount || amount <= 0 || isNaN(amount)) {
+      if (typeof addToast === 'function') {
+        addToast("Please enter a valid amount", 'error', 4000);
+      }
+      return;
+    }
+
+    const currentBalance = metricsData.totalBalance || 0;
+
+    if (amount > currentBalance) {
+      if (typeof addToast === 'function') {
+        addToast(`Insufficient funds. Available: $${currentBalance.toFixed(2)}`, 'error', 4000);
+      }
+      return;
+    }
+
+    setIsTransferringToWallet(true);
+
+    try {
+      console.log("💰 Transferring to wallet:", {
+        amount,
+        currentBalance,
+        userId: user.id
+      });
+
+      const userId = user.id;
+
+      // 1. Get current wallet balance
+      const { data: currentWallet, error: walletFetchError } = await supabase
+        .from('wallets')
+        .select('available_balance, completed_transfers, pending_transfers, declined_transfers')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (walletFetchError) {
+        console.error("Error fetching wallet:", walletFetchError);
+        throw walletFetchError;
+      }
+
+      const currentWalletBalance = currentWallet?.available_balance || 0;
+      const currentCompletedTransfers = currentWallet?.completed_transfers || 0;
+      const currentPendingTransfers = currentWallet?.pending_transfers || 0;
+      const currentDeclinedTransfers = currentWallet?.declined_transfers || 0;
+      const newWalletBalance = currentWalletBalance + amount;
+
+      // 2. Create wallet transfer record
+      const transferData = {
+        user_id: userId,
+        amount: amount,
+        transfer_type: "trading_to_wallet",
+        status: "completed",
+        description: "Transfer from trading account to wallet",
+        created_at: new Date().toISOString()
+      };
+
+      // 3. Create transaction record
+      const transactionData = {
+        user_id: userId,
+        type: "withdrawal", 
+        amount: amount,
+        status: "completed",
+        description: "Transfer to wallet", // Keep this description
+        transaction_date: new Date().toISOString()
+      };
+
+      console.log("📊 Transaction data:", transactionData);
+
+      // 4. Update wallet balance - REMOVED updated_at column
+      let walletPromise;
+      if (currentWallet) {
+        // Update existing wallet - NO updated_at field
+        walletPromise = supabase
+          .from('wallets')
+          .update({
+            available_balance: newWalletBalance,
+            completed_transfers: currentCompletedTransfers + 1,
+            pending_transfers: currentPendingTransfers,
+            declined_transfers: currentDeclinedTransfers
+            // NO updated_at column
+          })
+          .eq('user_id', userId);
+      } else {
+        // Create new wallet - NO updated_at field
+        walletPromise = supabase
+          .from('wallets')
+          .insert([{
+            user_id: userId,
+            available_balance: newWalletBalance,
+            pending_transfers: 0,
+            completed_transfers: 1,
+            declined_transfers: 0,
+            created_at: new Date().toISOString()
+            // NO updated_at column
+          }]);
+      }
+
+      // 5. Execute all operations
+      const [
+        transferResult,
+        transactionResult,
+        walletResult,
+        metricsResult
+      ] = await Promise.all([
+        supabase.from("wallet_transfers").insert([transferData]),
+        supabase.from("transactions").insert([transactionData]),
+        walletPromise,
+        updateUserMetrics(userId)
+      ]);
+
+      if (transferResult.error) {
+        console.error("Transfer insert error:", transferResult.error);
+        throw transferResult.error;
+      }
+      if (transactionResult.error) {
+        console.error("Transaction insert error:", transactionResult.error);
+        throw transactionResult.error;
+      }
+      if (walletResult.error) {
+        console.error("Wallet update error:", walletResult.error);
+        throw walletResult.error;
+      }
+      if (metricsResult && !metricsResult.success) {
+        throw new Error(metricsResult.error);
+      }
+
+      console.log("✅ All database operations completed successfully");
+
+      // 6. Refresh data
+      if (typeof fetchTradingData === 'function') {
+        await fetchTradingData();
+      }
+
+      // 7. Show success
+      if (typeof addToast === 'function') {
+        addToast(`$${amount.toFixed(2)} transferred to wallet successfully`, 'success', 4000);
+      }
+
+      setTransferToWalletAmount("");
+      setShowWithdrawToWallet(false);
+
+    } catch (error) {
+      console.error("❌ Error transferring to wallet:", error);
+      if (typeof addToast === 'function') {
+        addToast(`Transfer failed: ${error.message}`, 'error', 5000);
+      }
+    } finally {
+      setIsTransferringToWallet(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -107,6 +289,8 @@ export default function Dashboard({
         </div>
       )}
 
+      
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Account Balance */}
@@ -125,6 +309,15 @@ export default function Dashboard({
               <TrendingUp className="w-4 h-4 mr-1" />+
               {metricsData?.todayPnLPercent}% today
             </div>
+            <Button
+        onClick={() => setShowWithdrawToWallet(true)}
+        variant=""
+        size="sm"
+        className="bg-green-400 hover:bg-blue-500 mt-3"
+      >
+        <ArrowRight className="w-4 h-4" /> {/* Changed icon */}
+        Transfer to your wallet
+      </Button>
           </CardContent>
         </Card>
 
@@ -141,7 +334,7 @@ export default function Dashboard({
             <div className="text-xs text-green-600 dark:text-green-600 space-y-1">
               <div>Account: ${(metricsData?.totalBalance || 0).toLocaleString()}</div>
             </div>
-          
+
           </CardContent>
         </Card>
 
@@ -163,7 +356,7 @@ export default function Dashboard({
           </CardContent>
         </Card>
 
-  
+
 
         {/* Win Rate */}
         <Card>
@@ -181,6 +374,65 @@ export default function Dashboard({
           </CardContent>
         </Card>
       </div>
+
+      {showWithdrawToWallet && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-xl font-semibold">Withdraw to Wallet</CardTitle>
+              <CardDescription>
+                Transfer funds from your trading account to your wallet
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Amount (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={transferToWalletAmount}
+                    onChange={(e) => setTransferToWalletAmount(e.target.value)}
+                    className="w-full pl-8 pr-4 py-3"
+                    min="0"
+                    step="0.01"
+                    disabled={isTransferringToWallet}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  Available balance: ${metricsData?.totalBalance?.toFixed(2) || "0.00"}
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowWithdrawToWallet(false)}
+                  className="flex-1"
+                  disabled={isTransferringToWallet}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleTransferToWallet}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  disabled={isTransferringToWallet || !transferToWalletAmount || parseFloat(transferToWalletAmount) <= 0}
+                >
+                  {isTransferringToWallet ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Withdraw Now'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Main Content Grid (Major Currency Pairs & Recent Trades) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

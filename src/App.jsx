@@ -75,9 +75,9 @@ function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [systemUnreadCount, setSystemUnreadCount] = useState(0);
+  const [walletRefreshTrigger, setWalletRefreshTrigger] = useState(0);
 
-  
-    
+
   // In your main App component
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
@@ -86,12 +86,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-  // Check for hash-based routing
-  const hash = window.location.hash.substring(1);
-  if (hash === 'update-password') {
-    setCurrentPage('update-password');
-  }
-}, []);
+    // Check for hash-based routing
+    const hash = window.location.hash.substring(1);
+    if (hash === 'update-password') {
+      setCurrentPage('update-password');
+    }
+  }, []);
 
   // Check auth state on mount
   useEffect(() => {
@@ -341,110 +341,110 @@ function App() {
 
   // Add these functions in your App.jsx
 
-// 1. Load user settings on login
-useEffect(() => {
-  if (user?.id) {
-    loadUserSettings();
-  }
-}, [user]);
-
-const loadUserSettings = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (error && error.code !== 'PGRST116') { // Not "no rows" error
-      console.error('Error loading settings:', error);
-      return;
+  // 1. Load user settings on login
+  useEffect(() => {
+    if (user?.id) {
+      loadUserSettings();
     }
-    
-    if (data) {
-      // Convert snake_case from DB to camelCase for React state
-      const camelCaseSettings = {
-        notifications: data.notifications,
-        emailAlerts: data.email_alerts,
-        riskTolerance: data.risk_tolerance,
-        autoFollow: data.auto_follow,
-        maxCopyAmount: data.max_copy_amount
-      };
-      
-      setUserSettings(camelCaseSettings);
-    } else {
-      // No settings exist yet, use defaults
-      const defaultSettings = {
-        notifications: true,
-        emailAlerts: true,
-        riskTolerance: "medium",
-        autoFollow: false,
-        maxCopyAmount: 1000
-      };
-      
-      // Convert camelCase to snake_case for DB insert
-      const defaultSnakeCase = {
-        notifications: defaultSettings.notifications,
-        email_alerts: defaultSettings.emailAlerts,
-        risk_tolerance: defaultSettings.riskTolerance,
-        auto_follow: defaultSettings.autoFollow,
-        max_copy_amount: defaultSettings.maxCopyAmount
-      };
-      
-      // Create initial record
-      await supabase
+  }, [user]);
+
+  const loadUserSettings = async () => {
+    try {
+      const { data, error } = await supabase
         .from('user_settings')
-        .insert({
-          user_id: user.id,
-          ...defaultSnakeCase
-        });
-      
-      setUserSettings(defaultSettings);
-    }
-  } catch (error) {
-    console.error('Error in loadUserSettings:', error);
-  }
-};
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
 
-// 2. Handle settings update
-const handleSettingsUpdate = async (camelCaseSettings) => {
-  try {
-    if (!user?.id) return;
-    
-    console.log('Saving settings:', camelCaseSettings);
-    
-    // Convert camelCase to snake_case for database
-    const snakeCaseSettings = {
-      notifications: camelCaseSettings.notifications,
-      email_alerts: camelCaseSettings.emailAlerts,
-      risk_tolerance: camelCaseSettings.riskTolerance,
-      auto_follow: camelCaseSettings.autoFollow,
-      max_copy_amount: camelCaseSettings.maxCopyAmount
-    };
-    
-    // Update in database
-    const { error } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: user.id,
-        ...snakeCaseSettings,
-        updated_at: new Date().toISOString()
-      });
-    
-    if (error) throw error;
-    
-    // Update local state (keep as camelCase)
-    setUserSettings(camelCaseSettings);
-    
-    // Show success message
-    console.log('Settings saved successfully');
-    // addToast('Settings saved!', 'success');
-    
-  } catch (error) {
-    console.error('Error saving settings:', error);
-    throw error; // Re-throw so SettingsPage can show error
-  }
-};
+      if (error && error.code !== 'PGRST116') { // Not "no rows" error
+        console.error('Error loading settings:', error);
+        return;
+      }
+
+      if (data) {
+        // Convert snake_case from DB to camelCase for React state
+        const camelCaseSettings = {
+          notifications: data.notifications,
+          emailAlerts: data.email_alerts,
+          riskTolerance: data.risk_tolerance,
+          autoFollow: data.auto_follow,
+          maxCopyAmount: data.max_copy_amount
+        };
+
+        setUserSettings(camelCaseSettings);
+      } else {
+        // No settings exist yet, use defaults
+        const defaultSettings = {
+          notifications: true,
+          emailAlerts: true,
+          riskTolerance: "medium",
+          autoFollow: false,
+          maxCopyAmount: 1000
+        };
+
+        // Convert camelCase to snake_case for DB insert
+        const defaultSnakeCase = {
+          notifications: defaultSettings.notifications,
+          email_alerts: defaultSettings.emailAlerts,
+          risk_tolerance: defaultSettings.riskTolerance,
+          auto_follow: defaultSettings.autoFollow,
+          max_copy_amount: defaultSettings.maxCopyAmount
+        };
+
+        // Create initial record
+        await supabase
+          .from('user_settings')
+          .insert({
+            user_id: user.id,
+            ...defaultSnakeCase
+          });
+
+        setUserSettings(defaultSettings);
+      }
+    } catch (error) {
+      console.error('Error in loadUserSettings:', error);
+    }
+  };
+
+  // 2. Handle settings update
+  const handleSettingsUpdate = async (camelCaseSettings) => {
+    try {
+      if (!user?.id) return;
+
+      console.log('Saving settings:', camelCaseSettings);
+
+      // Convert camelCase to snake_case for database
+      const snakeCaseSettings = {
+        notifications: camelCaseSettings.notifications,
+        email_alerts: camelCaseSettings.emailAlerts,
+        risk_tolerance: camelCaseSettings.riskTolerance,
+        auto_follow: camelCaseSettings.autoFollow,
+        max_copy_amount: camelCaseSettings.maxCopyAmount
+      };
+
+      // Update in database
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          ...snakeCaseSettings,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      // Update local state (keep as camelCase)
+      setUserSettings(camelCaseSettings);
+
+      // Show success message
+      console.log('Settings saved successfully');
+      // addToast('Settings saved!', 'success');
+
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      throw error; // Re-throw so SettingsPage can show error
+    }
+  };
 
   // // Handle logout
   // const handleLogout = async () => {
@@ -1147,187 +1147,187 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
     }
   };
 
- const fetchTradingData = async () => {
-  if (!user?.id) return;
+  const fetchTradingData = async () => {
+    if (!user?.id) return;
 
-  try {
-    console.log("🔄 Starting fetchTradingData...");
+    try {
+      console.log("🔄 Starting fetchTradingData...");
 
-    // Fetch all data in parallel
-    const [
-      openPositionsRes,
-      closedPositionsRes,
-      userMetricsRes,
-      walletTransfersRes
-    ] = await Promise.all([
-      supabase.from("open_positions").select("*").eq("user_id", user.id),
-      supabase.from("closed_positions").select("*").eq("user_id", user.id),
-      supabase.from("user_metrics").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("wallet_transfers").select("amount, transfer_type, status")
-        .eq("user_id", user.id)
-        .eq("status", "completed")
-    ]);
+      // Fetch all data in parallel
+      const [
+        openPositionsRes,
+        closedPositionsRes,
+        userMetricsRes,
+        walletTransfersRes
+      ] = await Promise.all([
+        supabase.from("open_positions").select("*").eq("user_id", user.id),
+        supabase.from("closed_positions").select("*").eq("user_id", user.id),
+        supabase.from("user_metrics").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("wallet_transfers").select("amount, transfer_type, status")
+          .eq("user_id", user.id)
+          .eq("status", "completed")
+      ]);
 
-    const openPositions = openPositionsRes.data || [];
-    const closedPositions = closedPositionsRes.data || [];
-    const userMetrics = userMetricsRes.data || null;
-    const walletTransfers = walletTransfersRes.data || [];
+      const openPositions = openPositionsRes.data || [];
+      const closedPositions = closedPositionsRes.data || [];
+      const userMetrics = userMetricsRes.data || null;
+      const walletTransfers = walletTransfersRes.data || [];
 
-    console.log("📊 Data fetched:", {
-      openPositions: openPositions.length,
-      closedPositions: closedPositions.length,
-      walletTransfers: walletTransfers.length
-    });
-
-    // 1. Calculate starting balance from wallet transfers
-    const totalDeposits = walletTransfers
-      .filter(t => t.transfer_type === "wallet_to_trading" || t.transfer_type === "deposit")
-      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-
-    const totalWithdrawals = walletTransfers
-      .filter(t => t.transfer_type === "trading_to_wallet" || t.transfer_type === "withdrawal")
-      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-
-    const startingBalance = totalDeposits - totalWithdrawals;
-
-    console.log("💰 Starting balance calculation:", {
-      totalDeposits,
-      totalWithdrawals,
-      startingBalance
-    });
-
-    // 2. Calculate total closed P&L
-    const totalClosedPnl = closedPositions.reduce(
-      (sum, pos) => sum + (parseFloat(pos.pnl) || 0),
-      0
-    );
-
-    console.log("📈 Closed positions P&L:", totalClosedPnl);
-
-    // 3. Calculate total open P&L
-    const totalOpenPnl = openPositions.reduce(
-      (sum, pos) => sum + (parseFloat(pos.pnl) || 0),
-      0
-    );
-
-    // 4. CORRECT FORMULA: Account Balance = Starting Balance + Total Closed P&L
-    const accountBalance = startingBalance + totalClosedPnl;
-    
-    // 5. CORRECT FORMULA: Equity = Account Balance + Total Open P&L
-    const equity = accountBalance + totalOpenPnl;
-
-    console.log("🎯 FINAL Calculations:", {
-      startingBalance,
-      totalClosedPnl,
-      totalOpenPnl,
-      accountBalance,
-      equity,
-      formula: `$${startingBalance} + $${totalClosedPnl} = $${accountBalance}`,
-      formulaEquity: `$${accountBalance} + $${totalOpenPnl} = $${equity}`
-    });
-
-    // Update local state
-    setMetricsData(prev => ({
-      ...prev,
-      totalBalance: accountBalance,
-      totalOpenPnl: totalOpenPnl,
-      equity: equity,
-      openPositions: openPositions.length,
-      todayPnLPercent: userMetrics?.today_pnl_percent || prev.todayPnLPercent || 0,
-      winRate: userMetrics?.win_rate || prev.winRate || 0
-    }));
-
-    // Update positions state
-    setOpenPositionsData(openPositions);
-    setClosedPositionsData(closedPositions);
-
-    // Calculate today's P&L
-    const today = new Date().toISOString().split("T")[0];
-    const todayPnl = closedPositions
-      .filter((pos) => pos.close_time && pos.close_time.startsWith(today))
-      .reduce((sum, pos) => sum + (parseFloat(pos.pnl) || 0), 0);
-
-    // Calculate commissions
-    const openCommission = openPositions.reduce(
-      (sum, pos) => sum + (parseFloat(pos.commission) || 0),
-      0
-    );
-    const closedCommission = closedPositions.reduce(
-      (sum, pos) => sum + (parseFloat(pos.commission) || 0),
-      0
-    );
-    const totalCommission = openCommission + closedCommission;
-
-    // Update trading summary state
-    setTradingSummaryData({
-      total_open_pnl: totalOpenPnl,
-      total_closed_pnl: totalClosedPnl, // Note: This is JUST the P&L, not including starting balance
-      today_pnl: todayPnl,
-      total_commission: totalCommission,
-      total_positions: openPositions.length + closedPositions.length,
-      total_open_positions: openPositions.length,
-    });
-
-    // Update user_metrics in database (use upsert for consistency)
-    const userMetricsData = {
-      user_id: user.id,
-      account_balance: accountBalance,
-      total_open_pnl: totalOpenPnl,
-      equity: equity,
-      starting_balance: startingBalance,
-      open_positions: openPositions.length,
-      today_pnl_percent: userMetrics?.today_pnl_percent || 0,
-      win_rate: userMetrics?.win_rate || 0,
-      // updated_at: new Date().toISOString()
-    };
-
-    const { error: metricsError } = await supabase
-      .from("user_metrics")
-      .upsert(userMetricsData, {
-        onConflict: 'user_id'
+      console.log("📊 Data fetched:", {
+        openPositions: openPositions.length,
+        closedPositions: closedPositions.length,
+        walletTransfers: walletTransfers.length
       });
 
-    if (metricsError) {
-      console.error("❌ Error updating user_metrics:", metricsError);
-    } else {
-      console.log("✅ user_metrics updated successfully");
-    }
+      // 1. Calculate starting balance from wallet transfers
+      const totalDeposits = walletTransfers
+        .filter(t => t.transfer_type === "wallet_to_trading" || t.transfer_type === "deposit")
+        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-    // Update trading_summary table
-    const { data: existingSummary } = await supabase
-      .from("trading_summary")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      const totalWithdrawals = walletTransfers
+        .filter(t => t.transfer_type === "trading_to_wallet" || t.transfer_type === "withdrawal")
+        .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-    const tradingSummaryData = {
-      user_id: user.id,
-      total_open_pnl: totalOpenPnl,
-      total_closed_pnl: totalClosedPnl,
-      today_pnl: todayPnl,
-      total_commission: totalCommission,
-      updated_at: new Date().toISOString(),
-    };
+      const startingBalance = totalDeposits - totalWithdrawals;
 
-    if (existingSummary) {
-      await supabase
+      console.log("💰 Starting balance calculation:", {
+        totalDeposits,
+        totalWithdrawals,
+        startingBalance
+      });
+
+      // 2. Calculate total closed P&L
+      const totalClosedPnl = closedPositions.reduce(
+        (sum, pos) => sum + (parseFloat(pos.pnl) || 0),
+        0
+      );
+
+      console.log("📈 Closed positions P&L:", totalClosedPnl);
+
+      // 3. Calculate total open P&L
+      const totalOpenPnl = openPositions.reduce(
+        (sum, pos) => sum + (parseFloat(pos.pnl) || 0),
+        0
+      );
+
+      // 4. CORRECT FORMULA: Account Balance = Starting Balance + Total Closed P&L
+      const accountBalance = startingBalance + totalClosedPnl;
+
+      // 5. CORRECT FORMULA: Equity = Account Balance + Total Open P&L
+      const equity = accountBalance + totalOpenPnl;
+
+      console.log("🎯 FINAL Calculations:", {
+        startingBalance,
+        totalClosedPnl,
+        totalOpenPnl,
+        accountBalance,
+        equity,
+        formula: `$${startingBalance} + $${totalClosedPnl} = $${accountBalance}`,
+        formulaEquity: `$${accountBalance} + $${totalOpenPnl} = $${equity}`
+      });
+
+      // Update local state
+      setMetricsData(prev => ({
+        ...prev,
+        totalBalance: accountBalance,
+        totalOpenPnl: totalOpenPnl,
+        equity: equity,
+        openPositions: openPositions.length,
+        todayPnLPercent: userMetrics?.today_pnl_percent || prev.todayPnLPercent || 0,
+        winRate: userMetrics?.win_rate || prev.winRate || 0
+      }));
+
+      // Update positions state
+      setOpenPositionsData(openPositions);
+      setClosedPositionsData(closedPositions);
+
+      // Calculate today's P&L
+      const today = new Date().toISOString().split("T")[0];
+      const todayPnl = closedPositions
+        .filter((pos) => pos.close_time && pos.close_time.startsWith(today))
+        .reduce((sum, pos) => sum + (parseFloat(pos.pnl) || 0), 0);
+
+      // Calculate commissions
+      const openCommission = openPositions.reduce(
+        (sum, pos) => sum + (parseFloat(pos.commission) || 0),
+        0
+      );
+      const closedCommission = closedPositions.reduce(
+        (sum, pos) => sum + (parseFloat(pos.commission) || 0),
+        0
+      );
+      const totalCommission = openCommission + closedCommission;
+
+      // Update trading summary state
+      setTradingSummaryData({
+        total_open_pnl: totalOpenPnl,
+        total_closed_pnl: totalClosedPnl, // Note: This is JUST the P&L, not including starting balance
+        today_pnl: todayPnl,
+        total_commission: totalCommission,
+        total_positions: openPositions.length + closedPositions.length,
+        total_open_positions: openPositions.length,
+      });
+
+      // Update user_metrics in database (use upsert for consistency)
+      const userMetricsData = {
+        user_id: user.id,
+        account_balance: accountBalance,
+        total_open_pnl: totalOpenPnl,
+        equity: equity,
+        starting_balance: startingBalance,
+        open_positions: openPositions.length,
+        today_pnl_percent: userMetrics?.today_pnl_percent || 0,
+        win_rate: userMetrics?.win_rate || 0,
+        // updated_at: new Date().toISOString()
+      };
+
+      const { error: metricsError } = await supabase
+        .from("user_metrics")
+        .upsert(userMetricsData, {
+          onConflict: 'user_id'
+        });
+
+      if (metricsError) {
+        console.error("❌ Error updating user_metrics:", metricsError);
+      } else {
+        console.log("✅ user_metrics updated successfully");
+      }
+
+      // Update trading_summary table
+      const { data: existingSummary } = await supabase
         .from("trading_summary")
-        .update(tradingSummaryData)
-        .eq("user_id", user.id);
-    } else {
-      await supabase.from("trading_summary").insert({
-        ...tradingSummaryData,
-        created_at: new Date().toISOString(),
-      });
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const tradingSummaryData = {
+        user_id: user.id,
+        total_open_pnl: totalOpenPnl,
+        total_closed_pnl: totalClosedPnl,
+        today_pnl: todayPnl,
+        total_commission: totalCommission,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingSummary) {
+        await supabase
+          .from("trading_summary")
+          .update(tradingSummaryData)
+          .eq("user_id", user.id);
+      } else {
+        await supabase.from("trading_summary").insert({
+          ...tradingSummaryData,
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      console.log("✅ fetchTradingData completed successfully");
+
+    } catch (error) {
+      console.error("❌ Error in fetchTradingData:", error);
+      setDataError("Failed to load trading data");
     }
-
-    console.log("✅ fetchTradingData completed successfully");
-
-  } catch (error) {
-    console.error("❌ Error in fetchTradingData:", error);
-    setDataError("Failed to load trading data");
-  }
-};
+  };
 
   // Remove the mockInvestors array and replace with state for investors
   const [followedInvestors, setFollowedInvestors] = useState([]);
@@ -1658,20 +1658,20 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
           return <ClientProtection onNavigate={handleNavigation} />;
         case "deposit-withdrawal":
           return <DepositPage onNavigate={handleNavigation} />;
-          case "auth/callback":
-  // Supabase will handle the password reset here
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <div className="text-center">
-        <span className="loading loading-spinner loading-lg text-blue-500 mb-4"></span>
-        <p className="text-gray-700 dark:text-gray-300">
-          Processing password reset...
-        </p>
-      </div>
-    </div>
-  );
-  case "update-password":
-  return <UpdatePassword onNavigate={handleNavigation} />;
+        case "auth/callback":
+          // Supabase will handle the password reset here
+          return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+              <div className="text-center">
+                <span className="loading loading-spinner loading-lg text-blue-500 mb-4"></span>
+                <p className="text-gray-700 dark:text-gray-300">
+                  Processing password reset...
+                </p>
+              </div>
+            </div>
+          );
+        case "update-password":
+          return <UpdatePassword onNavigate={handleNavigation} />;
         case "login":
           return (
             <AuthScreen
@@ -1804,6 +1804,7 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
           );
       }
     }
+
     // Regular user pages with user layout
     switch (currentPage) {
       case "dashboard":
@@ -1816,6 +1817,11 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
             recentTrades={closedPositionsData}
             onNavigate={handleNavigation}
             profileData={profileData}
+            user={user} // ADD THIS
+            addToast={addToast} // ADD THIS
+            updateUserMetrics={updateUserMetrics} // ADD THIS
+            fetchTradingData={fetchTradingData} // ADD THIS
+            onWalletTransfer={() => setWalletRefreshTrigger(prev => prev + 1)}
           />
         );
       case "trading":
@@ -1861,13 +1867,14 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
         return (
           <SettingsPage
             userId={user?.id}
-          userSettings={userSettings || {}} // Pass the loaded settings
-      onSettingsUpdate={handleSettingsUpdate}
+            userSettings={userSettings || {}} // Pass the loaded settings
+            onSettingsUpdate={handleSettingsUpdate}
             onInvestorSelect={handleInvestorSelect}
             followedInvestors={followedInvestors}
             investors={investors}
             selectedInvestor={selectedInvestor}
             user={user} // Add this line
+            refreshTrigger={walletRefreshTrigger}
           />
         );
       default:
@@ -1880,6 +1887,11 @@ const handleSettingsUpdate = async (camelCaseSettings) => {
             recentTrades={closedPositionsData}
             onNavigate={handleNavigation}
             profileData={profileData}
+             user={user} // ADD THIS
+            addToast={addToast} // ADD THIS
+            updateUserMetrics={updateUserMetrics} // ADD THIS
+            fetchTradingData={fetchTradingData} // ADD THIS
+            onWalletTransfer={() => setWalletRefreshTrigger(prev => prev + 1)}
           />
         );
     }
